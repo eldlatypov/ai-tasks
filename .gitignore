@@ -1,0 +1,5 @@
+vscode/
+.download/
+extension/node_modules/
+extension/dist/
+extension/*.vsix
