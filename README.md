@@ -59,6 +59,16 @@ Same features except the title-bar task strip (that needs the patched workbench 
 copy): tasks are in the status bar and the AI IDE > Tasks view, where they can be dragged to reorder.
 Options: `-ProfileName`, `-OpenFolder`, `-NoShortcut`, `-SkipExtensions`.
 
+VS Code remembers a profile per folder, so a folder opened before (e.g. via "Open with Code") keeps
+opening in the default profile. To open any folder in the profile from Explorer:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-context-menu.ps1
+```
+
+adds **Open in AI Agents** to the context menu of folders and folder backgrounds (per user,
+no admin; on Windows 11 under "Show more options"). `-Uninstall` removes it.
+
 ## Keys
 
 | Keys | |
