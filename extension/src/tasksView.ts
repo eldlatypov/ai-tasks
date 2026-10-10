@@ -6,8 +6,17 @@ import { stateIcon, stateLabel } from './ui';
 
 type Node = { kind: 'task'; task: Task } | { kind: 'terminal'; task: Task; terminal: BackgroundTerminal };
 
-/** Sidebar list of tasks and their terminals: management UI, and a fallback when the title-bar task strip is off. */
-export class TasksView implements vscode.TreeDataProvider<Node>, vscode.Disposable {
+const TASK_MIME = 'application/vnd.code.tree.aiide.tasks';
+
+/**
+ * Sidebar list of tasks and their terminals: management UI, and the main task switcher when
+ * there is no title-bar task strip. Tasks can be dragged to reorder them.
+ */
+export class TasksView
+  implements vscode.TreeDataProvider<Node>, vscode.TreeDragAndDropController<Node>, vscode.Disposable
+{
+  readonly dragMimeTypes = [TASK_MIME];
+  readonly dropMimeTypes = [TASK_MIME];
   private readonly emitter = new vscode.EventEmitter<Node | undefined>();
   readonly onDidChangeTreeData = this.emitter.event;
   private readonly subscription: vscode.Disposable;
@@ -50,6 +59,25 @@ export class TasksView implements vscode.TreeDataProvider<Node>, vscode.Disposab
     item.contextValue = 'terminal';
     item.command = { command: 'aiIde.showTerminal', title: 'Show Terminal', arguments: [task.id, terminal.id] };
     return item;
+  }
+
+  handleDrag(source: readonly Node[], data: vscode.DataTransfer): void {
+    const task = source.find((n) => n.kind === 'task');
+    if (task) {
+      data.set(TASK_MIME, new vscode.DataTransferItem(task.task.id));
+    }
+  }
+
+  async handleDrop(target: Node | undefined, data: vscode.DataTransfer): Promise<void> {
+    const sourceId = await data.get(TASK_MIME)?.asString();
+    if (!sourceId) {
+      return;
+    }
+    // Dropped on a task or one of its terminals: take that task's place; on empty space: go last.
+    const targetId = target?.task.id ?? this.tasks.all[this.tasks.all.length - 1]?.id;
+    if (targetId) {
+      this.tasks.moveTask(sourceId, targetId);
+    }
   }
 
   dispose(): void {

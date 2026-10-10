@@ -3,14 +3,20 @@ import * as vscode from 'vscode';
 export type Mode = 'agent' | 'classic';
 
 /** User settings the Agent layout changes; Classic restores whatever the user had before. */
-const AGENT_SETTINGS: Record<string, unknown> = {
-  'terminal.integrated.defaultLocation': 'editor',
-  'window.commandCenter': false,
-  'scm.defaultViewMode': 'tree',
-  'workbench.editor.closeEmptyGroups': true,
-  // The chat panel on the right competes with the task's files for space.
-  'workbench.secondarySideBar.defaultVisibility': 'hidden',
-};
+function agentSettings(): Record<string, unknown> {
+  const settings: Record<string, unknown> = {
+    'terminal.integrated.defaultLocation': 'editor',
+    'scm.defaultViewMode': 'tree',
+    'workbench.editor.closeEmptyGroups': true,
+    // The chat panel on the right competes with the task's files for space.
+    'workbench.secondarySideBar.defaultVisibility': 'hidden',
+  };
+  if (vscode.workspace.getConfiguration('aiIde').get<boolean>('titleBarStrip', false)) {
+    // The title-bar task strip takes the command center's place.
+    settings['window.commandCenter'] = false;
+  }
+  return settings;
+}
 
 const MODE_KEY = 'aiIde.mode';
 const SNAPSHOT_KEY = 'aiIde.classicSnapshot';
@@ -63,7 +69,7 @@ export class LayoutMode implements vscode.Disposable {
     const existing = onlyNewKeys ? this.context.globalState.get<Record<string, unknown>>(SNAPSHOT_KEY) : undefined;
     const snapshot: Record<string, unknown> = { ...existing };
     const config = vscode.workspace.getConfiguration();
-    for (const [key, value] of Object.entries(AGENT_SETTINGS)) {
+    for (const [key, value] of Object.entries(agentSettings())) {
       if (existing && key in existing) {
         continue;
       }
@@ -77,7 +83,8 @@ export class LayoutMode implements vscode.Disposable {
   private async restoreClassic(): Promise<void> {
     const snapshot = this.context.globalState.get<Record<string, unknown>>(SNAPSHOT_KEY) ?? {};
     const config = vscode.workspace.getConfiguration();
-    for (const key of Object.keys(AGENT_SETTINGS)) {
+    // Everything the snapshot covers, even if the set of Agent settings has changed since.
+    for (const key of Object.keys(snapshot)) {
       const value = snapshot[key];
       await config.update(key, value === null ? undefined : value, vscode.ConfigurationTarget.Global);
     }

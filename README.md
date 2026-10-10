@@ -44,6 +44,21 @@ Desktop and in the Start menu (opening `D:\repos`). Re-run it after changing the
 
 To remove everything: delete the `vscode\` folder and the two `AI IDE` shortcuts.
 
+### Variant B: a profile of the regular VS Code
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-profile.ps1
+```
+
+Installs the extension into an **AI Agents** profile of the installed VS Code (created on first run,
+which opens a window), copies the default profile's settings, keybindings and extensions into it,
+and creates **VS Code - AI Agents** shortcuts (`--profile "AI Agents" D:\repos`). The default profile
+is not touched; switch with the shortcut or the profile switcher.
+
+Same features except the title-bar task strip (that needs the patched workbench of the portable
+copy): tasks are in the status bar and the AI IDE > Tasks view, where they can be dragged to reorder.
+Options: `-ProfileName`, `-OpenFolder`, `-NoShortcut`, `-SkipExtensions`.
+
 ## Keys
 
 | Keys | |

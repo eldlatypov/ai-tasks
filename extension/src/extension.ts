@@ -37,7 +37,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     layout,
     tasksView,
     strip,
-    vscode.window.createTreeView('aiIde.tasks', { treeDataProvider: tasksView }),
+    vscode.window.createTreeView('aiIde.tasks', { treeDataProvider: tasksView, dragAndDropController: tasksView }),
 
     vscode.commands.registerCommand('aiIde.newTask', () => tasks.createTask()),
     vscode.commands.registerCommand('aiIde.switchTask', () => tasks.switchTask()),

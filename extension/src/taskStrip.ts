@@ -53,6 +53,7 @@ export class TaskStrip implements vscode.Disposable {
       this.modeItem,
       tasks.onDidChange(() => this.render()),
       layout.onDidChange(() => this.render()),
+      vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration('aiIde.titleBarStrip') && this.render()),
     );
     this.render();
   }
@@ -100,8 +101,12 @@ export class TaskStrip implements vscode.Disposable {
         this.items.delete(id);
       }
     }
-    for (const item of [this.newTaskItem, this.moveItem]) {
-      if (agent) {
+    const strip = vscode.workspace.getConfiguration('aiIde').get<boolean>('titleBarStrip', false);
+    for (const [item, visible] of [
+      [this.newTaskItem, agent],
+      [this.moveItem, agent && strip], // the strip hides it; without the strip it would be a stray button
+    ] as const) {
+      if (visible) {
         item.show();
       } else {
         item.hide();

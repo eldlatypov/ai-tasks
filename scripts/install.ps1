@@ -56,6 +56,16 @@ if (-not (Test-Path $settingsPath)) {
     }
     $settings | ConvertTo-Json -Depth 5 | Out-File -Encoding utf8 $settingsPath
 }
+# This install gets the title-bar task strip (step 4); tell the extension, also on existing installs.
+try {
+    $current = Get-Content -Raw $settingsPath | ConvertFrom-Json
+    if ($current.'aiIde.titleBarStrip' -ne $true) {
+        $current | Add-Member -NotePropertyName 'aiIde.titleBarStrip' -NotePropertyValue $true -Force
+        $current | ConvertTo-Json -Depth 10 | Out-File -Encoding utf8 $settingsPath
+    }
+} catch {
+    Write-Warning "Could not update $settingsPath (comments in it?). Add `"aiIde.titleBarStrip`": true by hand."
+}
 $mainKeybindings = Join-Path $env:APPDATA 'Code\User\keybindings.json'
 $keybindingsPath = Join-Path $userDir 'keybindings.json'
 if ((Test-Path $mainKeybindings) -and -not (Test-Path $keybindingsPath)) {

@@ -43,7 +43,13 @@
     "viewsWelcome": [
       {
         "view": "aiIde.tasks",
+        "when": "config.aiIde.titleBarStrip",
         "contents": "A task is an agent with its own terminals and files. Tasks show up as tabs in the title bar.\n[New Task](command:aiIde.newTask)\nCtrl+Alt+N new task · Ctrl+Alt+1…9 switch · Ctrl+Alt+T pick"
+      },
+      {
+        "view": "aiIde.tasks",
+        "when": "!config.aiIde.titleBarStrip",
+        "contents": "A task is an agent with its own terminals and files. Tasks are listed here and in the status bar; drag them here to reorder.\n[New Task](command:aiIde.newTask)\nCtrl+Alt+N new task · Ctrl+Alt+1…9 switch · Ctrl+Alt+T pick"
       }
     ],
     "commands": [
@@ -250,6 +256,11 @@
           "type": "string",
           "default": "claude",
           "description": "Command that starts the agent in a new task's first terminal. Leave empty to start a plain shell."
+        },
+        "aiIde.titleBarStrip": {
+          "type": "boolean",
+          "default": false,
+          "description": "The task strip is injected into the title bar (portable AI IDE install). Set by scripts/install.ps1; leave off in a regular VS Code."
         },
         "aiIde.resumeActiveTaskOnStartup": {
           "type": "boolean",

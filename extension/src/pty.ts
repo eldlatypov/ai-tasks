@@ -29,10 +29,12 @@ export function loadNodePty(): NodePty {
     return cached;
   }
   const appRoot = vscode.env.appRoot;
+  // Real folders first (layouts differ between VS Code versions); the asar path last, since a module
+  // that loads from there can still fail later when it looks for its native binaries.
   const candidates = [
+    path.join(appRoot, 'node_modules', 'node-pty'),
     path.join(appRoot, 'node_modules.asar.unpacked', 'node-pty'),
     path.join(appRoot, 'node_modules.asar', 'node-pty'),
-    path.join(appRoot, 'node_modules', 'node-pty'),
   ];
   const errors: string[] = [];
   for (const candidate of candidates) {
