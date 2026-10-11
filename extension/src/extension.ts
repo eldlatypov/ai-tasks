@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import { ChangedFile, ChangesView, getGitApi } from './changes';
+import { ArtifactsStore } from './artifacts';
+import { ChangedFile, ChangesMode, ChangesView, getGitApi } from './changes';
 import { LayoutMode } from './layoutMode';
 import { RepoTracker } from './repoTracker';
 import { StatusWatcher } from './status';
@@ -11,15 +12,18 @@ import { TaskStrip } from './taskStrip';
 type TaskArg = string | { task?: { id: string } } | undefined;
 type TerminalArg = { task: { id: string }; terminal: { id: string } };
 
+const CHANGES_MODE_KEY = 'aiIde.changesMode';
+
 function taskId(arg: TaskArg): string | undefined {
   return typeof arg === 'string' ? arg : arg?.task?.id;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const status = new StatusWatcher(context);
-  const tasks = new TaskManager(context, status);
+  const artifacts = new ArtifactsStore(context);
+  const tasks = new TaskManager(context, status, artifacts);
   const layout = new LayoutMode(context);
-  const tasksView = new TasksView(tasks);
+  const tasksView = new TasksView(tasks, artifacts);
   const strip = new TaskStrip(tasks, layout);
 
   // The injected task strip can only talk to us by clicking status bar items, so reordering is
@@ -33,6 +37,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   context.subscriptions.push(
     status,
+    artifacts,
     tasks,
     layout,
     tasksView,
@@ -63,6 +68,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('aiIde.renameTask', (arg: TaskArg) => tasks.renameTask(taskId(arg))),
     vscode.commands.registerCommand('aiIde.closeTask', (arg: TaskArg) => tasks.closeTask(taskId(arg))),
     vscode.commands.registerCommand('aiIde.newTerminal', () => tasks.newTerminal()),
+    vscode.commands.registerCommand('aiIde.openArtifacts', (arg: TaskArg) => {
+      const task = tasks.get(taskId(arg) ?? '') ?? tasks.active;
+      if (task) {
+        const file = artifacts.ensure(task.id, task.name);
+        return vscode.window.showTextDocument(vscode.Uri.file(file), { viewColumn: fileColumn(), preview: false });
+      }
+    }),
     vscode.commands.registerCommand('aiIde.showTerminal', (arg: string | TerminalArg, terminalId?: string) =>
       typeof arg === 'string' ? tasks.showTerminal(arg, terminalId!) : tasks.showTerminal(arg.task.id, arg.terminal.id),
     ),
@@ -90,7 +102,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   if (git) {
     const changes = new ChangesView(git);
     const treeView = vscode.window.createTreeView('aiIde.changes', { treeDataProvider: changes, showCollapseAll: true });
+    changes.setMode(context.workspaceState.get<ChangesMode>(CHANGES_MODE_KEY, 'working'));
     changes.attach(treeView);
+    const setChangesMode = (mode: ChangesMode) => {
+      changes.setMode(mode);
+      void context.workspaceState.update(CHANGES_MODE_KEY, mode);
+    };
     const repos = new RepoTracker(context, git, status, tasks);
     context.subscriptions.push(
       changes,
@@ -108,6 +125,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
       }),
       vscode.commands.registerCommand('aiIde.refreshChanges', () => changes.refresh()),
+      vscode.commands.registerCommand('aiIde.showBranchChanges', () => setChangesMode('branch')),
+      vscode.commands.registerCommand('aiIde.showWorkingChanges', () => setChangesMode('working')),
+      vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration('aiIde.baseBranch') && changes.refresh()),
       vscode.commands.registerCommand('aiIde.openChange', (file: ChangedFile) => changes.openChange(file)),
       vscode.commands.registerCommand('aiIde.openFile', (file: ChangedFile) =>
         vscode.window.showTextDocument(file.uri, { viewColumn: fileColumn(), preview: false }),

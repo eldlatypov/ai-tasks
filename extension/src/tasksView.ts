@@ -1,15 +1,19 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { ArtifactsStore } from './artifacts';
 import { BackgroundTerminal } from './backgroundTerminal';
 import { Task, TaskManager } from './tasks';
 import { stateIcon, stateLabel } from './ui';
 
-type Node = { kind: 'task'; task: Task } | { kind: 'terminal'; task: Task; terminal: BackgroundTerminal };
+type Node =
+  | { kind: 'task'; task: Task }
+  | { kind: 'artifacts'; task: Task }
+  | { kind: 'terminal'; task: Task; terminal: BackgroundTerminal };
 
 const TASK_MIME = 'application/vnd.code.tree.aiide.tasks';
 
 /**
- * Sidebar list of tasks and their terminals: management UI, and the main task switcher when
+ * Sidebar list of tasks with their artifacts file and terminals: management UI, and the main task switcher when
  * there is no title-bar task strip. Tasks can be dragged to reorder them.
  */
 export class TasksView
@@ -19,10 +23,16 @@ export class TasksView
   readonly dropMimeTypes = [TASK_MIME];
   private readonly emitter = new vscode.EventEmitter<Node | undefined>();
   readonly onDidChangeTreeData = this.emitter.event;
-  private readonly subscription: vscode.Disposable;
+  private readonly subscriptions: vscode.Disposable[];
 
-  constructor(private readonly tasks: TaskManager) {
-    this.subscription = tasks.onDidChange(() => this.emitter.fire(undefined));
+  constructor(
+    private readonly tasks: TaskManager,
+    private readonly artifacts: ArtifactsStore,
+  ) {
+    this.subscriptions = [
+      tasks.onDidChange(() => this.emitter.fire(undefined)),
+      artifacts.onDidChange(() => this.emitter.fire(undefined)),
+    ];
   }
 
   getChildren(node?: Node): Node[] {
@@ -30,7 +40,10 @@ export class TasksView
       return this.tasks.all.map((task) => ({ kind: 'task', task }));
     }
     if (node.kind === 'task') {
-      return node.task.terminals.map((terminal) => ({ kind: 'terminal', task: node.task, terminal }));
+      return [
+        { kind: 'artifacts', task: node.task },
+        ...node.task.terminals.map((terminal): Node => ({ kind: 'terminal', task: node.task, terminal })),
+      ];
     }
     return [];
   }
@@ -39,16 +52,25 @@ export class TasksView
     if (node.kind === 'task') {
       const { task } = node;
       const active = task === this.tasks.active;
-      const item = new vscode.TreeItem(
-        task.name,
-        task.terminals.length > 0 ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None,
-      );
+      const item = new vscode.TreeItem(task.name, vscode.TreeItemCollapsibleState.Expanded);
       item.id = `task:${task.id}`;
       item.iconPath = stateIcon(task.state);
       item.description = `${active ? '● ' : ''}${stateLabel(task.state)} · ${path.basename(task.data.cwd)}`;
       item.tooltip = `${task.name}\n${stateLabel(task.state)}\n${task.data.cwd}`;
       item.contextValue = 'task';
       item.command = { command: 'aiIde.activateTask', title: 'Open Task', arguments: [task.id] };
+      return item;
+    }
+    if (node.kind === 'artifacts') {
+      const { task } = node;
+      const links = this.artifacts.linkCount(task.id);
+      const item = new vscode.TreeItem('Artifacts', vscode.TreeItemCollapsibleState.None);
+      item.id = `artifacts:${task.id}`;
+      item.iconPath = new vscode.ThemeIcon('link');
+      item.description = links > 0 ? `${links} link${links === 1 ? '' : 's'}` : 'empty';
+      item.tooltip = 'Jira issues, merge requests, Confluence pages and the stand of this task';
+      item.contextValue = 'artifacts';
+      item.command = { command: 'aiIde.openArtifacts', title: 'Open Artifacts', arguments: [task.id] };
       return item;
     }
     const { task, terminal } = node;
@@ -81,7 +103,9 @@ export class TasksView
   }
 
   dispose(): void {
-    this.subscription.dispose();
+    for (const s of this.subscriptions) {
+      s.dispose();
+    }
     this.emitter.dispose();
   }
 }

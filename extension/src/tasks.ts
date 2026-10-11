@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { ArtifactsStore } from './artifacts';
 import { BackgroundTerminal, TerminalKind } from './backgroundTerminal';
 import { log } from './log';
 import { AgentState, StatusRecord, StatusWatcher } from './status';
@@ -69,6 +70,7 @@ export class TaskManager implements vscode.Disposable {
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly status: StatusWatcher,
+    private readonly artifacts: ArtifactsStore,
   ) {
     this.restore();
     this.disposables.push(
@@ -303,7 +305,11 @@ export class TaskManager implements vscode.Disposable {
         shellArgs: config.get<string[]>('shellArgs', ['-NoLogo']),
         env:
           kind === 'agent'
-            ? { AI_IDE_TASK: task.id, AI_IDE_STATUS_FILE: this.status.statusFileFor(task.id) }
+            ? {
+                AI_IDE_TASK: task.id,
+                AI_IDE_STATUS_FILE: this.status.statusFileFor(task.id),
+                AI_IDE_ARTIFACTS_FILE: this.artifacts.ensure(task.id, task.name),
+              }
             : { AI_IDE_TASK: task.id },
         initialCommand,
       });

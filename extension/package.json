@@ -88,6 +88,12 @@
         "icon": "$(terminal)"
       },
       {
+        "command": "aiIde.openArtifacts",
+        "title": "Open Task Artifacts",
+        "category": "AI IDE",
+        "icon": "$(link)"
+      },
+      {
         "command": "aiIde.showTerminal",
         "title": "Show Terminal",
         "category": "AI IDE"
@@ -120,6 +126,18 @@
         "title": "Refresh Changes",
         "category": "AI IDE",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "aiIde.showBranchChanges",
+        "title": "Show MR Delta (branch vs base)",
+        "category": "AI IDE",
+        "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "aiIde.showWorkingChanges",
+        "title": "Show Uncommitted Changes",
+        "category": "AI IDE",
+        "icon": "$(git-pull-request-draft)"
       },
       {
         "command": "aiIde.addRepository",
@@ -155,6 +173,16 @@
           "command": "aiIde.showExplorer",
           "when": "view == aiIde.changes",
           "group": "navigation@1"
+        },
+        {
+          "command": "aiIde.showBranchChanges",
+          "when": "view == aiIde.changes && aiIde.changesMode != branch",
+          "group": "navigation@0"
+        },
+        {
+          "command": "aiIde.showWorkingChanges",
+          "when": "view == aiIde.changes && aiIde.changesMode == branch",
+          "group": "navigation@0"
         },
         {
           "command": "aiIde.refreshChanges",
@@ -266,6 +294,11 @@
           "type": "boolean",
           "default": true,
           "description": "When the window opens, restart the active task's agent (resuming its Claude Code session)."
+        },
+        "aiIde.baseBranch": {
+          "type": "string",
+          "default": "",
+          "description": "Branch the MR delta in Changes is computed against (e.g. origin/develop). Empty: the remote's default branch, else origin/main, origin/master, main, master."
         },
         "aiIde.shell": {
           "type": "string",

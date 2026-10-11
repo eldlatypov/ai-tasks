@@ -55,6 +55,10 @@ function finish() {
     // The status file is best effort; never fail the agent's turn because of it.
   }
 
+  if (payload.hook_event_name === 'SessionStart') {
+    tellAboutArtifacts();
+  }
+
   // Paths the agent worked in, so the IDE can show changes of every repository it touched
   // (sibling repos, nested repos), not only those inside the opened folder.
   const touched = touchedPaths(payload);
@@ -82,4 +86,23 @@ function touchedPaths(payload) {
     }
   }
   return [...new Set(paths)];
+}
+
+/** Asks the agent to keep the task's artifacts file (shown under the task in the Tasks view). */
+function tellAboutArtifacts() {
+  const artifacts = process.env.AI_IDE_ARTIFACTS_FILE;
+  if (!artifacts) return;
+  const context =
+    `This session is an AI IDE task. Its artifacts file is ${artifacts.replace(/\\/g, '/')} ` +
+    '(Markdown, sections: Jira, Merge requests, Confluence, Stand). Whenever you create, find or are given ' +
+    "a link to this task's Jira issue, a merge request in any repository, a Confluence page you read or edited, " +
+    'or the feature stand, add it to the matching section as `- [title](url)` with a short note ' +
+    '(e.g. repo and MR state), without duplicates; update the note when the state changes. ' +
+    'Keep only links there, nothing else.';
+  try {
+    // writeSync: the process exits right after, an async stdout write could be lost.
+    fs.writeSync(1, JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } }));
+  } catch {
+    // best effort
+  }
 }

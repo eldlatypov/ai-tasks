@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { BranchDelta, branchDelta } from './branchDelta';
 import { fileColumn } from './tasks';
 
 // --- the slice of the built-in git extension API (extensions/git/src/api/git.d.ts) we use ---
@@ -64,13 +65,28 @@ export interface ChangedFile {
   repo: Repository;
   uri: vscode.Uri;
   status: Status;
+  /** MR delta mode: the merge base the file is compared to, and its path there when renamed. */
+  base?: string;
+  originalUri?: vscode.Uri;
 }
 
 interface RepoNode {
   kind: 'repo';
   repo: Repository;
   files: ChangedFile[];
+  delta?: BranchDelta;
 }
+
+/** `working`: uncommitted changes; `branch`: everything since the base branch (what the MR shows). */
+export type ChangesMode = 'working' | 'branch';
+
+const DELTA_STATUS: Record<string, Status> = {
+  A: Status.INDEX_ADDED,
+  D: Status.DELETED,
+  R: Status.INDEX_RENAMED,
+  T: Status.TYPE_CHANGED,
+  U: Status.UNTRACKED,
+};
 
 interface FolderNode {
   kind: 'folder';
@@ -97,7 +113,10 @@ const STATUS_LETTER: Record<number, string> = {
   [Status.TYPE_CHANGED]: 'T',
 };
 
-/** "Only changes" explorer: changed files of every repository in the workspace, sibling repos included. */
+/**
+ * "Only changes" explorer: changed files of every repository in the workspace, sibling repos
+ * included. Either uncommitted changes, or the MR delta of each repo's branch.
+ */
 export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Disposable {
   private readonly emitter = new vscode.EventEmitter<Node | undefined>();
   readonly onDidChangeTreeData = this.emitter.event;
@@ -105,6 +124,9 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   private readonly disposables: vscode.Disposable[] = [];
   private refreshTimer: NodeJS.Timeout | undefined;
   private treeView: vscode.TreeView<Node> | undefined;
+  private mode: ChangesMode = 'working';
+  /** MR deltas, computed on demand and dropped on every refresh. */
+  private readonly deltas = new Map<Repository, Promise<BranchDelta | undefined>>();
 
   constructor(readonly git: GitAPI) {
     for (const repo of git.repositories) {
@@ -125,14 +147,28 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
 
   attach(treeView: vscode.TreeView<Node>): void {
     this.treeView = treeView;
-    this.updateBadge();
+    this.setMode(this.mode);
+  }
+
+  get currentMode(): ChangesMode {
+    return this.mode;
+  }
+
+  setMode(mode: ChangesMode): void {
+    this.mode = mode;
+    void vscode.commands.executeCommand('setContext', 'aiIde.changesMode', mode);
+    if (this.treeView) {
+      this.treeView.title = mode === 'branch' ? 'Changes · MR delta' : 'Changes';
+    }
+    this.refresh();
   }
 
   refresh(): void {
     clearTimeout(this.refreshTimer);
     this.refreshTimer = setTimeout(() => {
+      this.deltas.clear();
       this.emitter.fire(undefined);
-      this.updateBadge();
+      void this.updateBadge();
     }, 100);
   }
 
@@ -161,26 +197,54 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     return [...byPath.values()].sort((a, b) => a.uri.fsPath.localeCompare(b.uri.fsPath));
   }
 
-  private repos(): RepoNode[] {
-    return this.git.repositories
-      .map((repo) => ({ kind: 'repo' as const, repo, files: this.changedFiles(repo) }))
+  private delta(repo: Repository): Promise<BranchDelta | undefined> {
+    let delta = this.deltas.get(repo);
+    if (!delta) {
+      delta = branchDelta(repo.rootUri.fsPath);
+      this.deltas.set(repo, delta);
+    }
+    return delta;
+  }
+
+  private async deltaNode(repo: Repository): Promise<RepoNode> {
+    const delta = await this.delta(repo);
+    const files = (delta?.files ?? []).map(
+      (f): ChangedFile => ({
+        kind: 'file',
+        repo,
+        uri: vscode.Uri.joinPath(repo.rootUri, f.path),
+        status: DELTA_STATUS[f.status] ?? Status.MODIFIED,
+        base: delta?.mergeBase,
+        originalUri: f.oldPath ? vscode.Uri.joinPath(repo.rootUri, f.oldPath) : undefined,
+      }),
+    );
+    return { kind: 'repo', repo, files, delta };
+  }
+
+  private async repos(): Promise<RepoNode[]> {
+    const nodes =
+      this.mode === 'branch'
+        ? await Promise.all(this.git.repositories.map((repo) => this.deltaNode(repo)))
+        : this.git.repositories.map((repo): RepoNode => ({ kind: 'repo', repo, files: this.changedFiles(repo) }));
+    return nodes
       .filter((node) => node.files.length > 0)
       .sort((a, b) => path.basename(a.repo.rootUri.fsPath).localeCompare(path.basename(b.repo.rootUri.fsPath)));
   }
 
-  private updateBadge(): void {
+  private async updateBadge(): Promise<void> {
     if (!this.treeView) {
       return;
     }
-    const total = this.repos().reduce((sum, r) => sum + r.files.length, 0);
+    const total = (await this.repos()).reduce((sum, r) => sum + r.files.length, 0);
+    const what = this.mode === 'branch' ? 'MR changes' : 'changes';
     this.treeView.badge = total > 0 ? { value: total, tooltip: `${total} changed file(s)` } : undefined;
     this.treeView.message =
       total === 0
-        ? `No changes in ${this.git.repositories.length} tracked repositor${this.git.repositories.length === 1 ? 'y' : 'ies'}.`
+        ? `No ${what} in ${this.git.repositories.length} tracked repositor${this.git.repositories.length === 1 ? 'y' : 'ies'}.`
         : undefined;
   }
 
-  getChildren(node?: Node): Node[] {
+  async getChildren(node?: Node): Promise<Node[]> {
     if (!node) {
       return this.repos();
     }
@@ -199,8 +263,13 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       item.id = `repo:${node.repo.rootUri.fsPath}`;
       item.iconPath = new vscode.ThemeIcon('repo');
       const branch = node.repo.state.HEAD?.name;
-      item.description = `${node.files.length} change${node.files.length === 1 ? '' : 's'}${branch ? ` · ${branch}` : ''}`;
-      item.tooltip = node.repo.rootUri.fsPath;
+      const count = `${node.files.length} ${node.delta ? 'file' : 'change'}${node.files.length === 1 ? '' : 's'}`;
+      item.description = node.delta
+        ? `${count} · +${node.delta.additions} −${node.delta.deletions} · ${branch ?? 'HEAD'} → ${node.delta.baseRef}`
+        : `${count}${branch ? ` · ${branch}` : ''}`;
+      item.tooltip = node.delta
+        ? `${node.repo.rootUri.fsPath}\nCompared to the merge base with ${node.delta.baseRef} (${node.delta.mergeBase.slice(0, 8)}), uncommitted changes included`
+        : node.repo.rootUri.fsPath;
       return item;
     }
     if (node.kind === 'folder') {
@@ -212,7 +281,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     }
     // resourceUri gives the file icon plus git colouring from the built-in decorations.
     const item = new vscode.TreeItem(node.uri, vscode.TreeItemCollapsibleState.None);
-    item.id = `file:${node.uri.fsPath}`;
+    item.id = `file:${node.base ? 'mr:' : ''}${node.uri.fsPath}`;
     item.description = STATUS_LETTER[node.status] ?? '';
     item.tooltip = `${path.relative(node.repo.rootUri.fsPath, node.uri.fsPath)} — ${item.description}`;
     item.contextValue = 'change';
@@ -220,10 +289,30 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     return item;
   }
 
-  /** Diff against HEAD for modified files; plain file for new ones; HEAD version for deleted ones. */
+  /**
+   * Diff against HEAD (the merge base in MR delta mode) for modified files; plain file for new
+   * ones; the old version for deleted ones.
+   */
   async openChange(file: ChangedFile): Promise<void> {
     const options = { viewColumn: fileColumn(), preview: true, preserveFocus: false };
     const title = path.basename(file.uri.fsPath);
+    if (file.base) {
+      const base = file.base;
+      if (file.status === Status.INDEX_ADDED || file.status === Status.UNTRACKED) {
+        await vscode.window.showTextDocument(file.uri, options);
+      } else if (file.status === Status.DELETED) {
+        await vscode.window.showTextDocument(this.git.toGitUri(file.uri, base), options);
+      } else {
+        await vscode.commands.executeCommand(
+          'vscode.diff',
+          this.git.toGitUri(file.originalUri ?? file.uri, base),
+          file.uri,
+          `${title} (${base.slice(0, 8)} ↔ working tree)`,
+          options,
+        );
+      }
+      return;
+    }
     switch (file.status) {
       case Status.UNTRACKED:
       case Status.INDEX_ADDED:
