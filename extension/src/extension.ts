@@ -102,7 +102,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   if (git) {
     const changes = new ChangesView(git);
     const treeView = vscode.window.createTreeView('aiIde.changes', { treeDataProvider: changes, showCollapseAll: true });
-    changes.setMode(context.workspaceState.get<ChangesMode>(CHANGES_MODE_KEY, 'working'));
+    changes.setMode(context.workspaceState.get<ChangesMode>(CHANGES_MODE_KEY, 'branch'));
     changes.attach(treeView);
     const setChangesMode = (mode: ChangesMode) => {
       changes.setMode(mode);

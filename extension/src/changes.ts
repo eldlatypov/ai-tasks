@@ -124,7 +124,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   private readonly disposables: vscode.Disposable[] = [];
   private refreshTimer: NodeJS.Timeout | undefined;
   private treeView: vscode.TreeView<Node> | undefined;
-  private mode: ChangesMode = 'working';
+  private mode: ChangesMode = 'branch';
   /** MR deltas, computed on demand and dropped on every refresh. */
   private readonly deltas = new Map<Repository, Promise<BranchDelta | undefined>>();
 
