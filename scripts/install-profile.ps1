@@ -21,6 +21,7 @@ $userDir = Join-Path $env:APPDATA 'Code\User'
 $storagePath = Join-Path $userDir 'globalStorage\storage.json'
 
 function Step($text) { Write-Host "==> $text" -ForegroundColor Cyan }
+. (Join-Path $PSScriptRoot 'paste-keybinding.ps1')
 
 $codeCmd = (Get-Command code.cmd -ErrorAction SilentlyContinue).Source
 if (-not $codeCmd) { throw 'VS Code CLI (code.cmd) not found on PATH.' }
@@ -107,6 +108,7 @@ $settings | ConvertTo-Json -Depth 10 | Out-File -Encoding utf8 $settingsPath
 $keybindings = Join-Path $profileDir 'keybindings.json'
 $mainKeybindings = Join-Path $userDir 'keybindings.json'
 if ((Test-Path $mainKeybindings) -and -not (Test-Path $keybindings)) { Copy-Item $mainKeybindings $keybindings }
+Add-PasteKeybinding $keybindings
 
 # --- 5. shortcuts ------------------------------------------------------------------------------
 if (-not $NoShortcut) {
