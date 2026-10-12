@@ -18,6 +18,7 @@ $dataDir = Join-Path $vscodeDir 'data'
 $userDir = Join-Path $dataDir 'user-data\User'
 
 function Step($text) { Write-Host "==> $text" -ForegroundColor Cyan }
+. (Join-Path $PSScriptRoot 'paste-keybinding.ps1')
 
 # --- 1. portable VS Code -------------------------------------------------------------------
 if (-not (Test-Path (Join-Path $vscodeDir 'Code.exe'))) {
@@ -71,6 +72,7 @@ $keybindingsPath = Join-Path $userDir 'keybindings.json'
 if ((Test-Path $mainKeybindings) -and -not (Test-Path $keybindingsPath)) {
     Copy-Item $mainKeybindings $keybindingsPath
 }
+Add-PasteKeybinding $keybindingsPath
 
 # --- 3. extension --------------------------------------------------------------------------
 Step 'Building the AI IDE extension'

@@ -90,6 +90,12 @@ no admin; on Windows 11 under "Show more options"). `-Uninstall` removes it.
   - `backgroundTerminal.ts`: terminals whose process outlives the tab. The process runs in node-pty
     (VS Code's own copy) and a headless xterm keeps the screen, so hiding a terminal only closes its
     view; showing it replays the screen.
+    VS Code can't see which program runs in such a terminal, so its `terminalShellType` context key
+    keeps the value of the last regular terminal. When that was PowerShell, the built-in
+    `pastePwsh` binding takes Ctrl+V and sends a raw `^V` instead of the clipboard text. A
+    keybinding contributed by the extension loses to `pastePwsh`, so the installers add a user
+    keybinding (`scripts/paste-keybinding.ps1`) that sends Ctrl+V in editor-area terminals to
+    `workbench.action.terminal.paste`.
   - `status.ts` + `hooks/hook.js`: task agents start as `claude --settings <generated file>` with
     hooks (UserPromptSubmit, PostToolUse, Notification, Stop, …) that write the state to a per-task
     file. Global Claude Code settings are not modified; the hook is a no-op outside AI IDE terminals.
