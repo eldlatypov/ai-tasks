@@ -119,10 +119,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       tasks.onDidChange(() => {
         if (tasks.active?.id !== scopedTaskId) {
           scopedTaskId = tasks.active?.id;
-          changes.refresh();
+          changes.render(0);
         }
       }),
-      repos.onDidChangeTaskRepos((taskId) => taskId === tasks.active?.id && changes.refresh()),
+      repos.onDidChangeTaskRepos((taskId) => taskId === tasks.active?.id && changes.render(0)),
       vscode.commands.registerCommand('aiIde.addRepository', async () => {
         const picked = await vscode.window.showOpenDialog({
           canSelectFiles: false,
