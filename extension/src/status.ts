@@ -11,6 +11,12 @@ import * as vscode from 'vscode';
  */
 export type AgentState = 'thinking' | 'waiting' | 'done' | 'idle' | 'stopped';
 
+/**
+ * Per-task journal of paths the agent wrote to. Older versions kept reads too, in `.touched`
+ * files; those are ignored so a task that only read a repo does not get its MR delta.
+ */
+const JOURNAL = '.writes';
+
 export interface StatusRecord {
   state: AgentState;
   event?: string;
@@ -29,7 +35,7 @@ export class StatusWatcher implements vscode.Disposable {
 
   private readonly touchedEmitter = new vscode.EventEmitter<{ taskId: string; paths: string[] }>();
   /**
-   * Paths (files, folders) a task's agent worked with, from the hook's .touched files. The status
+   * Paths (files, folders) a task's agent wrote to, from the hook's .writes files. The status
    * dir is shared by all windows: listeners must ignore tasks that are not theirs.
    */
   readonly onTouched = this.touchedEmitter.event;
@@ -54,8 +60,10 @@ export class StatusWatcher implements vscode.Disposable {
 
   clear(taskId: string): void {
     fs.rmSync(this.statusFileFor(taskId), { force: true });
-    fs.rmSync(path.join(this.statusDir, `${taskId}.touched`), { force: true });
-    this.touchedOffsets.delete(`${taskId}.touched`);
+    for (const ext of [JOURNAL, '.touched']) {
+      fs.rmSync(path.join(this.statusDir, `${taskId}${ext}`), { force: true });
+    }
+    this.touchedOffsets.delete(`${taskId}${JOURNAL}`);
     this.lastTs.delete(taskId);
   }
 
@@ -79,7 +87,7 @@ export class StatusWatcher implements vscode.Disposable {
   private watch(): void {
     try {
       this.watcher = fs.watch(this.statusDir, (_event, filename) => {
-        if (filename?.endsWith('.touched')) {
+        if (filename?.endsWith(JOURNAL)) {
           this.readTouched(filename);
           return;
         }
@@ -142,14 +150,14 @@ export class StatusWatcher implements vscode.Disposable {
       }
     }
     if (paths.length > 0) {
-      this.touchedEmitter.fire({ taskId: filename.slice(0, -'.touched'.length), paths });
+      this.touchedEmitter.fire({ taskId: filename.slice(0, -JOURNAL.length), paths });
     }
   }
 
   /** Emits everything not read yet, i.e. on startup all paths agents have touched so far. */
   readAllTouched(): void {
     for (const name of fs.readdirSync(this.statusDir)) {
-      if (name.endsWith('.touched')) {
+      if (name.endsWith(JOURNAL)) {
         this.readTouched(name);
       }
     }

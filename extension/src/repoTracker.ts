@@ -7,21 +7,30 @@ import { StatusWatcher } from './status';
 import { TaskManager } from './tasks';
 
 const STORAGE_KEY = 'aiIde.touchedRepos';
+const TASK_REPOS_KEY = 'aiIde.taskRepoRoots';
 
 /**
- * Makes the git extension (and so the Changes view) see every repository the agents work in.
+ * Makes the git extension (and so the Changes view) see every repository the agents work in,
+ * and remembers which task each one belongs to.
  *
  * VS Code only discovers repositories inside the opened folder, a level or so deep. Agents
  * routinely edit sibling repos (`D:\repos\a` open, agent changes `D:\repos\b`) or repos nested
- * deeper. So: the repo of each task's folder, and of every path the agent touched (reported by
+ * deeper. So: the repo of each task's folder, and of every path the agent wrote to (reported by
  * the Claude Code hook), is opened in the git extension and remembered for this workspace.
+ * The Changes view shows only the active task's repositories: with a whole `D:\repos` folder
+ * open, the git extension also finds every repo the other tasks are on.
  */
 export class RepoTracker implements vscode.Disposable {
   /** lower-case root -> root */
   private readonly roots = new Map<string, string>();
+  /** task id -> lower-case roots of its repositories */
+  private readonly taskRoots = new Map<string, Set<string>>();
   /** lower-case folder -> repo root containing it (null: none) */
   private readonly rootCache = new Map<string, string | null>();
   private readonly disposables: vscode.Disposable[] = [];
+  private readonly emitter = new vscode.EventEmitter<string>();
+  /** Fires with the task id when a repository is added to a task. */
+  readonly onDidChangeTaskRepos = this.emitter.event;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -33,11 +42,16 @@ export class RepoTracker implements vscode.Disposable {
       this.roots.set(root.toLowerCase(), root);
       void this.open(root);
     }
+    const saved = context.workspaceState.get<Record<string, string[]>>(TASK_REPOS_KEY, {});
+    for (const [taskId, roots] of Object.entries(saved)) {
+      this.taskRoots.set(taskId, new Set(roots));
+    }
     this.disposables.push(
+      this.emitter,
       status.onTouched(({ taskId, paths }) => {
         if (this.tasks.get(taskId)) {
           for (const p of paths) {
-            this.addPath(p);
+            this.addPath(p, taskId);
           }
         }
       }),
@@ -47,8 +61,13 @@ export class RepoTracker implements vscode.Disposable {
     status.readAllTouched();
   }
 
-  /** Tracks the repository containing `p` (a file or folder), if any. Returns its root. */
-  addPath(p: string): string | undefined {
+  /** Lower-case roots of the task's repositories. */
+  reposOf(taskId: string): ReadonlySet<string> {
+    return this.taskRoots.get(taskId) ?? new Set();
+  }
+
+  /** Tracks the repository containing `p` (a file or folder), if any, for the given task. Returns its root. */
+  addPath(p: string, taskId?: string): string | undefined {
     const normalized = normalizePath(p);
     if (!normalized) {
       return undefined;
@@ -63,14 +82,45 @@ export class RepoTracker implements vscode.Disposable {
       this.save();
       log.info(`tracking repository ${root} (from ${p})`);
     }
+    if (taskId) {
+      let taskRoots = this.taskRoots.get(taskId);
+      if (!taskRoots) {
+        taskRoots = new Set();
+        this.taskRoots.set(taskId, taskRoots);
+      }
+      if (!taskRoots.has(key)) {
+        taskRoots.add(key);
+        this.saveTaskRoots();
+        this.emitter.fire(taskId);
+      }
+    }
     void this.open(root);
     return root;
   }
 
   private addTaskFolders(): void {
     for (const task of this.tasks.all) {
-      this.addPath(task.data.cwd);
+      this.addPath(task.data.cwd, task.id);
     }
+    // Forget closed tasks.
+    let pruned = false;
+    for (const taskId of [...this.taskRoots.keys()]) {
+      if (!this.tasks.get(taskId)) {
+        this.taskRoots.delete(taskId);
+        pruned = true;
+      }
+    }
+    if (pruned) {
+      this.saveTaskRoots();
+    }
+  }
+
+  private saveTaskRoots(): void {
+    const saved: Record<string, string[]> = {};
+    for (const [taskId, roots] of this.taskRoots) {
+      saved[taskId] = [...roots];
+    }
+    void this.context.workspaceState.update(TASK_REPOS_KEY, saved);
   }
 
   private findRoot(p: string): string | undefined {

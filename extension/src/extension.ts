@@ -109,10 +109,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       void context.workspaceState.update(CHANGES_MODE_KEY, mode);
     };
     const repos = new RepoTracker(context, git, status, tasks);
+    // Only the active task's repositories; with no task, everything.
+    changes.setScope(() => (tasks.active ? repos.reposOf(tasks.active.id) : undefined));
+    let scopedTaskId = tasks.active?.id;
     context.subscriptions.push(
       changes,
       treeView,
       repos,
+      tasks.onDidChange(() => {
+        if (tasks.active?.id !== scopedTaskId) {
+          scopedTaskId = tasks.active?.id;
+          changes.refresh();
+        }
+      }),
+      repos.onDidChangeTaskRepos((taskId) => taskId === tasks.active?.id && changes.refresh()),
       vscode.commands.registerCommand('aiIde.addRepository', async () => {
         const picked = await vscode.window.showOpenDialog({
           canSelectFiles: false,
@@ -120,7 +130,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           openLabel: 'Show in Changes',
           defaultUri: vscode.workspace.workspaceFolders?.[0]?.uri,
         });
-        if (picked?.[0] && !repos.addPath(picked[0].fsPath)) {
+        if (picked?.[0] && !repos.addPath(picked[0].fsPath, tasks.active?.id)) {
           vscode.window.showWarningMessage(`${picked[0].fsPath} is not inside a git repository.`);
         }
       }),
