@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { BranchDelta, branchDelta } from './branchDelta';
+import { BranchDelta, branchDelta, clearBaseRefCache } from './branchDelta';
 import { fileColumn } from './tasks';
 
 // --- the slice of the built-in git extension API (extensions/git/src/api/git.d.ts) we use ---
@@ -28,7 +28,7 @@ interface Change {
 }
 
 interface RepositoryState {
-  readonly HEAD: { readonly name?: string } | undefined;
+  readonly HEAD: { readonly name?: string; readonly commit?: string } | undefined;
   readonly indexChanges: Change[];
   readonly workingTreeChanges: Change[];
   readonly untrackedChanges?: Change[];
@@ -122,12 +122,20 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   readonly onDidChangeTreeData = this.emitter.event;
   private readonly repoListeners = new Map<Repository, vscode.Disposable>();
   private readonly disposables: vscode.Disposable[] = [];
-  private refreshTimer: NodeJS.Timeout | undefined;
+  private renderTimer: NodeJS.Timeout | undefined;
+  /** A render was skipped while the view was hidden. */
+  private renderPending = false;
   private treeView: vscode.TreeView<Node> | undefined;
   private mode: ChangesMode = 'branch';
   private scope: (() => ReadonlySet<string> | undefined) | undefined;
-  /** MR deltas, computed on demand and dropped on every refresh. */
+  /**
+   * MR deltas per repository. Each one costs several git processes (about a second of CPU on a
+   * big repo), and this view shares the extension host with the task terminals, so a delta is
+   * kept until its own repository changes rather than recomputed on every event.
+   */
   private readonly deltas = new Map<Repository, Promise<BranchDelta | undefined>>();
+  /** Last seen HEAD + working tree state per repository, to ignore events that change nothing. */
+  private readonly fingerprints = new Map<Repository, string>();
 
   constructor(readonly git: GitAPI) {
     for (const repo of git.repositories) {
@@ -136,18 +144,27 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     this.disposables.push(
       git.onDidOpenRepository((repo) => {
         this.track(repo);
-        this.refresh();
+        this.render();
       }),
       git.onDidCloseRepository((repo) => {
         this.repoListeners.get(repo)?.dispose();
         this.repoListeners.delete(repo);
-        this.refresh();
+        this.deltas.delete(repo);
+        this.fingerprints.delete(repo);
+        this.render();
       }),
     );
   }
 
   attach(treeView: vscode.TreeView<Node>): void {
     this.treeView = treeView;
+    this.disposables.push(
+      treeView.onDidChangeVisibility(({ visible }) => {
+        if (visible && this.renderPending) {
+          this.render(0);
+        }
+      }),
+    );
     this.setMode(this.mode);
   }
 
@@ -161,25 +178,60 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     if (this.treeView) {
       this.treeView.title = mode === 'branch' ? 'Changes · MR delta' : 'Changes';
     }
-    this.refresh();
+    this.render(0);
   }
 
+  /** Recomputes everything: the refresh button, a changed base branch setting. */
   refresh(): void {
-    clearTimeout(this.refreshTimer);
-    this.refreshTimer = setTimeout(() => {
-      this.deltas.clear();
+    this.deltas.clear();
+    clearBaseRefCache();
+    this.render(0);
+  }
+
+  /**
+   * Redraws the view from the cached deltas, computing only the missing ones. Bursts of events
+   * collapse into one redraw; nothing runs while the view is hidden.
+   */
+  render(delay = 1000): void {
+    clearTimeout(this.renderTimer);
+    this.renderTimer = setTimeout(() => {
+      if (this.treeView && !this.treeView.visible) {
+        this.renderPending = true;
+        return;
+      }
+      this.renderPending = false;
       this.emitter.fire(undefined);
       void this.updateBadge();
-    }, 100);
+    }, delay);
   }
 
   private track(repo: Repository): void {
     if (!this.repoListeners.has(repo)) {
+      this.fingerprints.set(repo, fingerprint(repo));
       this.repoListeners.set(
         repo,
-        repo.state.onDidChange(() => this.refresh()),
+        repo.state.onDidChange(() => this.onRepoChange(repo)),
       );
     }
+  }
+
+  private onRepoChange(repo: Repository): void {
+    // The git extension also fires after status runs that found nothing new.
+    const current = fingerprint(repo);
+    if (current === this.fingerprints.get(repo)) {
+      return;
+    }
+    this.fingerprints.set(repo, current);
+    this.deltas.delete(repo);
+    // A repository outside the active task is recomputed when it comes into view, not now.
+    if (this.inScope(repo)) {
+      this.render();
+    }
+  }
+
+  private inScope(repo: Repository): boolean {
+    const roots = this.scope?.();
+    return !roots || roots.has(repo.rootUri.fsPath.toLowerCase());
   }
 
   private changedFiles(repo: Repository): ChangedFile[] {
@@ -228,14 +280,11 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
    */
   setScope(scope: () => ReadonlySet<string> | undefined): void {
     this.scope = scope;
-    this.refresh();
+    this.render(0);
   }
 
   private scopedRepositories(): Repository[] {
-    const roots = this.scope?.();
-    return roots
-      ? this.git.repositories.filter((repo) => roots.has(repo.rootUri.fsPath.toLowerCase()))
-      : this.git.repositories;
+    return this.git.repositories.filter((repo) => this.inScope(repo));
   }
 
   private async repos(): Promise<RepoNode[]> {
@@ -354,7 +403,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   }
 
   dispose(): void {
-    clearTimeout(this.refreshTimer);
+    clearTimeout(this.renderTimer);
     for (const d of this.repoListeners.values()) {
       d.dispose();
     }
@@ -363,6 +412,18 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     }
     this.emitter.dispose();
   }
+}
+
+/** HEAD and the changed files as the git extension sees them: equal fingerprints, equal delta. */
+function fingerprint(repo: Repository): string {
+  const { state } = repo;
+  const changes = [
+    ...state.indexChanges,
+    ...(state.mergeChanges ?? []),
+    ...state.workingTreeChanges,
+    ...(state.untrackedChanges ?? []),
+  ].map((c) => `${c.status}:${(c.renameUri ?? c.uri).fsPath}`);
+  return `${state.HEAD?.name ?? ''}@${state.HEAD?.commit ?? ''}|${changes.sort().join('|')}`;
 }
 
 /** Folder tree with single-child folder chains compacted ("src/app/utils"), like the SCM tree view. */

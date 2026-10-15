@@ -67,8 +67,25 @@ export async function branchDelta(root: string): Promise<BranchDelta | undefined
   return { baseRef, mergeBase, files, additions, deletions };
 }
 
+/** Base ref per repo root (lower case). It changes only with the setting or the remote's default. */
+const baseRefs = new Map<string, Promise<string | undefined>>();
+
+export function clearBaseRefCache(): void {
+  baseRefs.clear();
+}
+
+function findBaseRef(root: string): Promise<string | undefined> {
+  const key = root.toLowerCase();
+  let ref = baseRefs.get(key);
+  if (!ref) {
+    ref = resolveBaseRef(root);
+    baseRefs.set(key, ref);
+  }
+  return ref;
+}
+
 /** `aiIde.baseBranch`, else the remote's default branch, else a usual name that exists. */
-async function findBaseRef(root: string): Promise<string | undefined> {
+async function resolveBaseRef(root: string): Promise<string | undefined> {
   const configured = vscode.workspace.getConfiguration('aiIde').get<string>('baseBranch', '').trim();
   const candidates = configured ? [configured] : [];
   const remoteHead = (await git(root, ['rev-parse', '--abbrev-ref', 'origin/HEAD'])).trim();
@@ -84,11 +101,37 @@ async function findBaseRef(root: string): Promise<string | undefined> {
   return undefined;
 }
 
-/** Stdout of a git command, empty on failure. */
-function git(cwd: string, args: string[]): Promise<string> {
-  return new Promise((resolve) => {
-    execFile('git', args, { cwd, maxBuffer: 64 * 1024 * 1024, windowsHide: true }, (err, stdout) =>
-      resolve(err ? '' : stdout),
-    );
-  });
+/** At most this many git processes at once, so a task with many repos does not flood the machine. */
+const MAX_GIT_PROCESSES = 2;
+let running = 0;
+const waiting: Array<() => void> = [];
+
+/**
+ * Stdout of a git command, empty on failure. GIT_OPTIONAL_LOCKS=0 keeps `git diff` from
+ * refreshing the index, which the git extension would report back as a change of the repo.
+ */
+async function git(cwd: string, args: string[]): Promise<string> {
+  if (running < MAX_GIT_PROCESSES) {
+    running++;
+  } else {
+    // The finishing process hands its slot over, so `running` stays as it is.
+    await new Promise<void>((resolve) => waiting.push(resolve));
+  }
+  try {
+    return await new Promise((resolve) => {
+      execFile(
+        'git',
+        args,
+        { cwd, maxBuffer: 64 * 1024 * 1024, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } },
+        (err, stdout) => resolve(err ? '' : stdout),
+      );
+    });
+  } finally {
+    const next = waiting.shift();
+    if (next) {
+      next();
+    } else {
+      running--;
+    }
+  }
 }
