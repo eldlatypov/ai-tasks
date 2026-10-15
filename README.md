@@ -21,12 +21,14 @@ The regular VS Code install is not touched.
 - **Agent status on the tab** (from Claude Code hooks): `✳` working, bell — needs your input
   (permission prompt), `●` finished and not looked at yet, `–` idle, `⊘` not running.
   A background task that needs input also raises a notification.
-- **Changes** — "only changes" explorer over the git repos in the opened folder **plus every repo
-  the agents touched**: task folders, files they edited, paths in their shell commands and their
-  working directory (sibling repos like `D:\repos\other`, deeply nested repos). Touched repos are
-  remembered per workspace. Click a file for a diff against HEAD. Title buttons: full Explorer,
-  refresh, add any repository by hand. Repos outside a trusted folder trigger VS Code's one-time
-  "trust this folder?" prompt.
+- **Changes** — "only changes" explorer over **the repos of the active task**: its folder, files
+  its agent edited, and repos where it ran a git command that changes them (`worktree add`,
+  `switch`, `commit`, …), so sibling repos like `D:\repos\other`, nested repos and worktrees are
+  in. A repo the agent only read stays out, and so do the repos other tasks are on; with no task
+  open the view covers every repo the git extension knows.
+  Each task's repos are remembered per workspace. Click a file for a diff against HEAD. Title
+  buttons: full Explorer, refresh, add a repository to the active task by hand. Repos outside a
+  trusted folder trigger VS Code's one-time "trust this folder?" prompt.
 - **Agent / Classic** — the item at the right of the status bar switches the layout back to plain
   VS Code and again, in one click.
 - After a window restart tasks are kept; the active task's agent is resumed (`claude --resume`).

@@ -125,6 +125,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   private refreshTimer: NodeJS.Timeout | undefined;
   private treeView: vscode.TreeView<Node> | undefined;
   private mode: ChangesMode = 'branch';
+  private scope: (() => ReadonlySet<string> | undefined) | undefined;
   /** MR deltas, computed on demand and dropped on every refresh. */
   private readonly deltas = new Map<Repository, Promise<BranchDelta | undefined>>();
 
@@ -221,11 +222,28 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     return { kind: 'repo', repo, files, delta };
   }
 
+  /**
+   * Limits the view to some repositories (lower-case roots), e.g. the active task's; a scope that
+   * returns undefined shows every repository the git extension knows.
+   */
+  setScope(scope: () => ReadonlySet<string> | undefined): void {
+    this.scope = scope;
+    this.refresh();
+  }
+
+  private scopedRepositories(): Repository[] {
+    const roots = this.scope?.();
+    return roots
+      ? this.git.repositories.filter((repo) => roots.has(repo.rootUri.fsPath.toLowerCase()))
+      : this.git.repositories;
+  }
+
   private async repos(): Promise<RepoNode[]> {
+    const repositories = this.scopedRepositories();
     const nodes =
       this.mode === 'branch'
-        ? await Promise.all(this.git.repositories.map((repo) => this.deltaNode(repo)))
-        : this.git.repositories.map((repo): RepoNode => ({ kind: 'repo', repo, files: this.changedFiles(repo) }));
+        ? await Promise.all(repositories.map((repo) => this.deltaNode(repo)))
+        : repositories.map((repo): RepoNode => ({ kind: 'repo', repo, files: this.changedFiles(repo) }));
     return nodes
       .filter((node) => node.files.length > 0)
       .sort((a, b) => path.basename(a.repo.rootUri.fsPath).localeCompare(path.basename(b.repo.rootUri.fsPath)));
@@ -237,11 +255,11 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     }
     const total = (await this.repos()).reduce((sum, r) => sum + r.files.length, 0);
     const what = this.mode === 'branch' ? 'MR changes' : 'changes';
+    const count = this.scopedRepositories().length;
+    const whose = this.scope?.() ? " of this task's" : ' tracked';
     this.treeView.badge = total > 0 ? { value: total, tooltip: `${total} changed file(s)` } : undefined;
     this.treeView.message =
-      total === 0
-        ? `No ${what} in ${this.git.repositories.length} tracked repositor${this.git.repositories.length === 1 ? 'y' : 'ies'}.`
-        : undefined;
+      total === 0 ? `No ${what} in ${count}${whose} repositor${count === 1 ? 'y' : 'ies'}.` : undefined;
   }
 
   async getChildren(node?: Node): Promise<Node[]> {
@@ -259,7 +277,8 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
 
   getTreeItem(node: Node): vscode.TreeItem {
     if (node.kind === 'repo') {
-      const item = new vscode.TreeItem(path.basename(node.repo.rootUri.fsPath), vscode.TreeItemCollapsibleState.Expanded);
+      // Collapsed: the repo line already shows the file count and +/− stats; folders inside open expanded.
+      const item = new vscode.TreeItem(path.basename(node.repo.rootUri.fsPath), vscode.TreeItemCollapsibleState.Collapsed);
       item.id = `repo:${node.repo.rootUri.fsPath}`;
       item.iconPath = new vscode.ThemeIcon('repo');
       const branch = node.repo.state.HEAD?.name;
