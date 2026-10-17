@@ -67,8 +67,9 @@ code --install-extension ai-tasks.vsix --force
 ```
 
 Publishing to [Open VSX](https://open-vsx.org): bump `version`, add a CHANGELOG entry, push `main`
-to GitHub (the store page loads the screenshots from there), then `npm run publish:ovsx` with the
-access token in `OVSX_PAT`.
+to GitHub (the store page loads the screenshots from there), then `npm run publish:ovsx`. The
+access token comes from `OVSX_PAT`, in the environment or in a git-ignored `.env` next to
+`package.json` (`OVSX_PAT=...`).
 
 - `src/tasks.ts`: tasks, switching, per-task editors, persistence.
 - `src/backgroundTerminal.ts`: terminals whose process outlives the tab. The process runs in

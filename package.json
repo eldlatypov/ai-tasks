@@ -184,7 +184,8 @@
         "command": "aiTasks.switchToIndex",
         "title": "Switch to Task by Index",
         "category": "AI Tasks"
-      }    ],
+      }
+    ],
     "menus": {
       "view/title": [
         {
@@ -286,18 +287,63 @@
       ]
     },
     "keybindings": [
-      { "command": "aiTasks.newTask", "key": "ctrl+alt+n" },
-      { "command": "aiTasks.switchTask", "key": "ctrl+alt+t" },
-      { "command": "aiTasks.newTerminal", "key": "ctrl+alt+`" },
-      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+1", "args": 0 },
-      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+2", "args": 1 },
-      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+3", "args": 2 },
-      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+4", "args": 3 },
-      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+5", "args": 4 },
-      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+6", "args": 5 },
-      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+7", "args": 6 },
-      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+8", "args": 7 },
-      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+9", "args": 8 }
+      {
+        "command": "aiTasks.newTask",
+        "key": "ctrl+alt+n"
+      },
+      {
+        "command": "aiTasks.switchTask",
+        "key": "ctrl+alt+t"
+      },
+      {
+        "command": "aiTasks.newTerminal",
+        "key": "ctrl+alt+`"
+      },
+      {
+        "command": "aiTasks.switchToIndex",
+        "key": "ctrl+alt+1",
+        "args": 0
+      },
+      {
+        "command": "aiTasks.switchToIndex",
+        "key": "ctrl+alt+2",
+        "args": 1
+      },
+      {
+        "command": "aiTasks.switchToIndex",
+        "key": "ctrl+alt+3",
+        "args": 2
+      },
+      {
+        "command": "aiTasks.switchToIndex",
+        "key": "ctrl+alt+4",
+        "args": 3
+      },
+      {
+        "command": "aiTasks.switchToIndex",
+        "key": "ctrl+alt+5",
+        "args": 4
+      },
+      {
+        "command": "aiTasks.switchToIndex",
+        "key": "ctrl+alt+6",
+        "args": 5
+      },
+      {
+        "command": "aiTasks.switchToIndex",
+        "key": "ctrl+alt+7",
+        "args": 6
+      },
+      {
+        "command": "aiTasks.switchToIndex",
+        "key": "ctrl+alt+8",
+        "args": 7
+      },
+      {
+        "command": "aiTasks.switchToIndex",
+        "key": "ctrl+alt+9",
+        "args": 8
+      }
     ],
     "walkthroughs": [
       {
@@ -309,28 +355,42 @@
             "id": "agent",
             "title": "Install the agent CLI",
             "description": "Each task starts `claude` (Claude Code) in its first terminal. Install it and check that `claude` runs in a terminal, or set another command.\n[Install Claude Code](https://docs.claude.com/en/docs/claude-code/setup)\n[Agent Command Setting](command:workbench.action.openSettings?%5B%22aiTasks.agentCommand%22%5D)",
-            "media": { "markdown": "media/walkthrough/agent.md" }
+            "media": {
+              "markdown": "media/walkthrough/agent.md"
+            }
           },
           {
             "id": "layout",
             "title": "Choose a layout",
             "description": "Optional. The Agent layout changes four of your settings so that a task's terminals and files sit side by side. Your values are kept and come back when you click **Agent** in the status bar.\n[Use the Agent Layout](command:aiTasks.useAgentLayout)",
-            "media": { "markdown": "media/walkthrough/layout.md" },
-            "completionEvents": ["onContext:aiTasks.agentMode"]
+            "media": {
+              "markdown": "media/walkthrough/layout.md"
+            },
+            "completionEvents": [
+              "onContext:aiTasks.agentMode"
+            ]
           },
           {
             "id": "task",
             "title": "Start a task",
             "description": "A task is an agent with its own terminals and files. Tasks are in the AI Tasks view and the status bar.\n[New Task](command:aiTasks.newTask)",
-            "media": { "markdown": "media/walkthrough/tasks.md" },
-            "completionEvents": ["onCommand:aiTasks.newTask"]
+            "media": {
+              "markdown": "media/walkthrough/tasks.md"
+            },
+            "completionEvents": [
+              "onCommand:aiTasks.newTask"
+            ]
           },
           {
             "id": "changes",
             "title": "Review the MR delta",
             "description": "The Changes view shows what the task's branches change against their base branch, across all the repositories it touched.\n[Open Changes](command:aiTasks.showChanges)\n[Base Branch Setting](command:workbench.action.openSettings?%5B%22aiTasks.baseBranch%22%5D)",
-            "media": { "markdown": "media/walkthrough/changes.md" },
-            "completionEvents": ["onView:aiTasks.changes"]
+            "media": {
+              "markdown": "media/walkthrough/changes.md"
+            },
+            "completionEvents": [
+              "onView:aiTasks.changes"
+            ]
           }
         ]
       }
@@ -360,7 +420,9 @@
         },
         "aiTasks.shellArgs": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "description": "Arguments passed to the shell. Empty: -NoLogo for the default Windows PowerShell, -l on macOS."
         }
@@ -372,7 +434,7 @@
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
     "package": "npm run typecheck && npm run build && vsce package --no-dependencies -o ai-tasks.vsix",
-    "publish:ovsx": "npm run package && npx --yes ovsx publish ai-tasks.vsix"
+    "publish:ovsx": "npm run package && node --env-file-if-exists=.env node_modules/ovsx/bin/ovsx publish ai-tasks.vsix"
   },
   "dependencies": {
     "@xterm/addon-serialize": "^0.13.0",
@@ -383,6 +445,7 @@
     "@types/vscode": "^1.100.0",
     "@vscode/vsce": "^3.2.0",
     "esbuild": "^0.25.0",
+    "ovsx": "^1.3.0",
     "typescript": "^5.6.0"
   }
 }
