@@ -2,10 +2,18 @@
   "name": "ai-tasks",
   "displayName": "AI Tasks",
   "description": "Task tabs for CLI AI agents (Claude Code): per-task terminals that keep running in the background, agent status on each task, task links (Jira, MRs, Confluence, stand) and an MR-delta Changes view across repos.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "eldlatypov",
   "license": "MIT",
   "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eldlatypov/ai-tasks.git"
+  },
+  "homepage": "https://github.com/eldlatypov/ai-tasks#readme",
+  "bugs": {
+    "url": "https://github.com/eldlatypov/ai-tasks/issues"
+  },
   "engines": {
     "vscode": "^1.100.0"
   },
@@ -363,7 +371,7 @@
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "package": "npm run typecheck && npm run build && vsce package --no-dependencies --allow-missing-repository -o ai-tasks.vsix",
+    "package": "npm run typecheck && npm run build && vsce package --no-dependencies -o ai-tasks.vsix",
     "publish:ovsx": "npm run package && npx --yes ovsx publish ai-tasks.vsix"
   },
   "dependencies": {

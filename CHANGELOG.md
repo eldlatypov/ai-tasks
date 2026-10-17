@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- Store page with screenshots; source on GitHub.
+
 ## 0.1.0
 
 First public release.
