@@ -35,6 +35,15 @@ The regular VS Code install is not touched.
 
 ## Install / update
 
+The extension alone (everything except the title-bar task strip) is on
+[Open VSX](https://open-vsx.org/extension/eldlatypov/ai-ide): install it from the Extensions view in
+Cursor, Windsurf or VSCodium, or download the `.vsix` there and run
+`code --install-extension ai-ide-<version>.vsix` for VS Code. To publish a new version: bump
+`version` in `extension/package.json`, then in `extension/` run `npm run publish:ovsx` with the
+Open VSX access token in `OVSX_PAT`.
+
+The full setup:
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\install.ps1
 ```
@@ -95,9 +104,11 @@ no admin; on Windows 11 under "Show more options"). `-Uninstall` removes it.
     VS Code can't see which program runs in such a terminal, so its `terminalShellType` context key
     keeps the value of the last regular terminal. When that was PowerShell, the built-in
     `pastePwsh` binding takes Ctrl+V and sends a raw `^V` instead of the clipboard text. A
-    keybinding contributed by the extension loses to `pastePwsh`, so the installers add a user
-    keybinding (`scripts/paste-keybinding.ps1`) that sends Ctrl+V in editor-area terminals to
-    `workbench.action.terminal.paste`.
+    keybinding contributed by the extension loses to `pastePwsh`, so the terminal itself turns a
+    lone `^V` on Windows into a paste of the clipboard (bracketed if the program asked for it);
+    on Windows Ctrl+V in a terminal is paste anyway, so a raw `^V` can only come from `pastePwsh`.
+    The installers also add a user keybinding (`scripts/paste-keybinding.ps1`) that sends Ctrl+V
+    in editor-area terminals straight to `workbench.action.terminal.paste`.
   - `status.ts` + `hooks/hook.js`: task agents start as `claude --settings <generated file>` with
     hooks (UserPromptSubmit, PostToolUse, Notification, Stop, …) that write the state to a per-task
     file. Global Claude Code settings are not modified; the hook is a no-op outside AI IDE terminals.

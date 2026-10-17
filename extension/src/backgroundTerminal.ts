@@ -43,6 +43,7 @@ export class BackgroundTerminal implements vscode.Disposable {
   private viewClose: vscode.EventEmitter<number | void> | undefined;
   private viewState: ViewState = 'hidden';
   private pendingOutput: string[] = [];
+  private input: Promise<void> = Promise.resolve();
 
   private exitCode: number | undefined;
   private readonly exitEmitter = new vscode.EventEmitter<number>();
@@ -118,7 +119,8 @@ export class BackgroundTerminal implements vscode.Disposable {
       open: (dims) => this.attach(write, dims),
       close: () => this.detach(),
       handleInput: (data) => {
-        this.pty.write(data);
+        // Keystrokes go through a chain so a paste waiting for the clipboard is not overtaken.
+        this.input = this.input.then(() => this.forwardInput(data));
         // Focus in/out reports (DECSET 1004, which Claude Code enables) are not the user typing.
         if (data !== '\x1b[I' && data !== '\x1b[O') {
           this.inputEmitter.fire();
@@ -163,6 +165,24 @@ export class BackgroundTerminal implements vscode.Disposable {
         // already gone
       }
     }
+  }
+
+  /**
+   * VS Code can't see which program runs in an extension terminal, so its terminalShellType
+   * context key keeps the value of the last regular terminal. When that was PowerShell, the
+   * built-in pastePwsh binding takes Ctrl+V and sends a raw ^V (meant for PSReadLine) instead
+   * of the clipboard text. On Windows Ctrl+V in a terminal is paste, so a lone ^V can only come
+   * from there: paste the clipboard the way the terminal would have.
+   */
+  private async forwardInput(data: string): Promise<void> {
+    if (data === '\x16' && process.platform === 'win32') {
+      const text = await vscode.env.clipboard.readText().then(undefined, () => '');
+      if (text) {
+        this.pty.write(pasteSequence(text, this.screen.modes.bracketedPasteMode));
+        return;
+      }
+    }
+    this.pty.write(data);
   }
 
   private onPtyData(data: string): void {
@@ -236,4 +256,11 @@ export class BackgroundTerminal implements vscode.Disposable {
     this.inputEmitter.dispose();
     this.viewEmitter.dispose();
   }
+}
+
+/** What xterm sends for a paste: CR line endings, wrapped in markers if the app asked for bracketed paste. */
+export function pasteSequence(text: string, bracketed: boolean): string {
+  const body = text.replace(/\r?\n/g, '\r');
+  // Pasted text must not be able to end the paste early.
+  return bracketed ? `\x1b[200~${body.replace(/\x1b\[20[01]~/g, '')}\x1b[201~` : body;
 }

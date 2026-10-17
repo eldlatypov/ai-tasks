@@ -1,15 +1,27 @@
 {
   "name": "ai-ide",
   "displayName": "AI IDE",
-  "description": "Task-centric layout for working with CLI AI agents: task tabs with agent status, per-task terminals and files, changes-only explorer across sibling repos.",
+  "description": "Task tabs for CLI AI agents (Claude Code): per-task terminals that keep running in the background, agent status on each task, task links (Jira, MRs, Confluence, stand) and an MR-delta Changes view across repos.",
   "version": "0.1.0",
-  "publisher": "local",
+  "publisher": "eldlatypov",
   "license": "MIT",
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.100.0"
   },
   "categories": [
+    "AI",
     "Other"
+  ],
+  "keywords": [
+    "claude",
+    "claude code",
+    "ai",
+    "agent",
+    "terminal",
+    "tasks",
+    "merge request",
+    "git"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
@@ -302,14 +314,14 @@
         },
         "aiIde.shell": {
           "type": "string",
-          "default": "powershell.exe",
-          "description": "Shell used for task terminals."
+          "default": "",
+          "description": "Shell used for task terminals. Empty: Windows PowerShell on Windows, $SHELL elsewhere."
         },
         "aiIde.shellArgs": {
           "type": "array",
           "items": { "type": "string" },
-          "default": ["-NoLogo"],
-          "description": "Arguments passed to the shell."
+          "default": [],
+          "description": "Arguments passed to the shell. Empty: -NoLogo for the default Windows PowerShell, -l on macOS."
         }
       }
     }
@@ -318,7 +330,8 @@
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "package": "npm run typecheck && npm run build && vsce package --no-dependencies --allow-missing-repository --skip-license -o ai-ide.vsix"
+    "package": "npm run typecheck && npm run build && vsce package --no-dependencies --allow-missing-repository -o ai-ide.vsix",
+    "publish:ovsx": "npm run package && npx --yes ovsx publish ai-ide.vsix"
   },
   "dependencies": {
     "@xterm/addon-serialize": "^0.13.0",

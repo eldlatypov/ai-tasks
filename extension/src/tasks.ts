@@ -301,8 +301,7 @@ export class TaskManager implements vscode.Disposable {
         name,
         kind,
         cwd,
-        shell: config.get<string>('shell', 'powershell.exe'),
-        shellArgs: config.get<string[]>('shellArgs', ['-NoLogo']),
+        ...shellCommand(config),
         env:
           kind === 'agent'
             ? {
@@ -567,4 +566,18 @@ function safeReaddir(dir: string): string[] {
   } catch {
     return [];
   }
+}
+
+/** The `aiIde.shell` setting, or the platform's usual shell when it is empty. */
+function shellCommand(config: vscode.WorkspaceConfiguration): { shell: string; shellArgs: string[] } {
+  const shell = config.get<string>('shell', '').trim();
+  const args = config.get<string[]>('shellArgs', []);
+  if (shell) {
+    return { shell, shellArgs: args };
+  }
+  if (process.platform === 'win32') {
+    return { shell: 'powershell.exe', shellArgs: args.length > 0 ? args : ['-NoLogo'] };
+  }
+  // A login shell on macOS, as VS Code does, so PATH has what the user's profile adds (e.g. claude).
+  return { shell: process.env.SHELL || '/bin/bash', shellArgs: args.length > 0 ? args : process.platform === 'darwin' ? ['-l'] : [] };
 }
