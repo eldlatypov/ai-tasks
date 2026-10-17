@@ -106,7 +106,7 @@ export class StatusWatcher implements vscode.Disposable {
         );
       });
     } catch (err) {
-      console.error('[ai-ide] cannot watch status dir', err);
+      console.error('[ai-tasks] cannot watch status dir', err);
     }
   }
 

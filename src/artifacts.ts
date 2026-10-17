@@ -34,7 +34,7 @@ export class ArtifactsStore implements vscode.Disposable {
         );
       });
     } catch (err) {
-      console.error('[ai-ide] cannot watch artifacts dir', err);
+      console.error('[ai-tasks] cannot watch artifacts dir', err);
     }
   }
 

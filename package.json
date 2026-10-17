@@ -1,0 +1,325 @@
+{
+  "name": "ai-tasks",
+  "displayName": "AI Tasks",
+  "description": "Task tabs for CLI AI agents (Claude Code): per-task terminals that keep running in the background, agent status on each task, task links (Jira, MRs, Confluence, stand) and an MR-delta Changes view across repos.",
+  "version": "0.1.0",
+  "publisher": "eldlatypov",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "claude",
+    "claude code",
+    "ai",
+    "agent",
+    "terminal",
+    "tasks",
+    "merge request",
+    "git"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "aiTasks",
+          "title": "AI Tasks",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "aiTasks": [
+        {
+          "id": "aiTasks.changes",
+          "name": "Changes"
+        },
+        {
+          "id": "aiTasks.tasks",
+          "name": "Tasks"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "aiTasks.tasks",
+        "contents": "A task is an agent with its own terminals and files. Tasks are listed here and in the status bar; drag them here to reorder.\n[New Task](command:aiTasks.newTask)\nCtrl+Alt+N new task · Ctrl+Alt+1…9 switch · Ctrl+Alt+T pick"
+      }
+    ],
+    "commands": [
+      {
+        "command": "aiTasks.newTask",
+        "title": "New Task",
+        "category": "AI Tasks",
+        "icon": "$(add)"
+      },
+      {
+        "command": "aiTasks.switchTask",
+        "title": "Switch Task…",
+        "category": "AI Tasks"
+      },
+      {
+        "command": "aiTasks.activateTask",
+        "title": "Open Task",
+        "category": "AI Tasks"
+      },
+      {
+        "command": "aiTasks.renameTask",
+        "title": "Rename Task",
+        "category": "AI Tasks",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "aiTasks.closeTask",
+        "title": "Close Task (stop its terminals)",
+        "category": "AI Tasks",
+        "icon": "$(close)"
+      },
+      {
+        "command": "aiTasks.newTerminal",
+        "title": "New Terminal in Current Task",
+        "category": "AI Tasks",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "aiTasks.openArtifacts",
+        "title": "Open Task Artifacts",
+        "category": "AI Tasks",
+        "icon": "$(link)"
+      },
+      {
+        "command": "aiTasks.showTerminal",
+        "title": "Show Terminal",
+        "category": "AI Tasks"
+      },
+      {
+        "command": "aiTasks.killTerminal",
+        "title": "Kill Terminal",
+        "category": "AI Tasks",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "aiTasks.toggleMode",
+        "title": "Toggle Agent / Classic Layout",
+        "category": "AI Tasks"
+      },
+      {
+        "command": "aiTasks.showExplorer",
+        "title": "Show Full Explorer",
+        "category": "AI Tasks",
+        "icon": "$(files)"
+      },
+      {
+        "command": "aiTasks.showChanges",
+        "title": "Show Changes Only",
+        "category": "AI Tasks",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "aiTasks.refreshChanges",
+        "title": "Refresh Changes",
+        "category": "AI Tasks",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "aiTasks.showBranchChanges",
+        "title": "Show MR Delta (branch vs base)",
+        "category": "AI Tasks",
+        "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "aiTasks.showWorkingChanges",
+        "title": "Show Uncommitted Changes",
+        "category": "AI Tasks",
+        "icon": "$(git-pull-request-draft)"
+      },
+      {
+        "command": "aiTasks.addRepository",
+        "title": "Show Repository in Changes…",
+        "category": "AI Tasks",
+        "icon": "$(repo)"
+      },
+      {
+        "command": "aiTasks.openChange",
+        "title": "Open Changes",
+        "category": "AI Tasks"
+      },
+      {
+        "command": "aiTasks.openFile",
+        "title": "Open File",
+        "category": "AI Tasks",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "aiTasks.switchToIndex",
+        "title": "Switch to Task by Index",
+        "category": "AI Tasks"
+      }    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "aiTasks.showExplorer",
+          "when": "view == aiTasks.changes",
+          "group": "navigation@1"
+        },
+        {
+          "command": "aiTasks.showBranchChanges",
+          "when": "view == aiTasks.changes && aiTasks.changesMode != branch",
+          "group": "navigation@0"
+        },
+        {
+          "command": "aiTasks.showWorkingChanges",
+          "when": "view == aiTasks.changes && aiTasks.changesMode == branch",
+          "group": "navigation@0"
+        },
+        {
+          "command": "aiTasks.refreshChanges",
+          "when": "view == aiTasks.changes",
+          "group": "navigation@2"
+        },
+        {
+          "command": "aiTasks.addRepository",
+          "when": "view == aiTasks.changes",
+          "group": "navigation@3"
+        },
+        {
+          "command": "aiTasks.showChanges",
+          "when": "view == workbench.explorer.fileView",
+          "group": "navigation@0"
+        },
+        {
+          "command": "aiTasks.newTask",
+          "when": "view == aiTasks.tasks",
+          "group": "navigation@1"
+        },
+        {
+          "command": "aiTasks.newTerminal",
+          "when": "view == aiTasks.tasks",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "aiTasks.openFile",
+          "when": "view == aiTasks.changes && viewItem == change",
+          "group": "inline"
+        },
+        {
+          "command": "aiTasks.renameTask",
+          "when": "view == aiTasks.tasks && viewItem == task",
+          "group": "inline@1"
+        },
+        {
+          "command": "aiTasks.closeTask",
+          "when": "view == aiTasks.tasks && viewItem == task",
+          "group": "inline@2"
+        },
+        {
+          "command": "aiTasks.killTerminal",
+          "when": "view == aiTasks.tasks && viewItem == terminal",
+          "group": "inline"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "aiTasks.activateTask",
+          "when": "false"
+        },
+        {
+          "command": "aiTasks.showTerminal",
+          "when": "false"
+        },
+        {
+          "command": "aiTasks.killTerminal",
+          "when": "false"
+        },
+        {
+          "command": "aiTasks.openChange",
+          "when": "false"
+        },
+        {
+          "command": "aiTasks.openFile",
+          "when": "false"
+        },
+        {
+          "command": "aiTasks.switchToIndex",
+          "when": "false"
+        }      ]
+    },
+    "keybindings": [
+      { "command": "aiTasks.newTask", "key": "ctrl+alt+n" },
+      { "command": "aiTasks.switchTask", "key": "ctrl+alt+t" },
+      { "command": "aiTasks.newTerminal", "key": "ctrl+alt+`" },
+      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+1", "args": 0 },
+      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+2", "args": 1 },
+      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+3", "args": 2 },
+      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+4", "args": 3 },
+      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+5", "args": 4 },
+      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+6", "args": 5 },
+      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+7", "args": 6 },
+      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+8", "args": 7 },
+      { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+9", "args": 8 }
+    ],
+    "configuration": {
+      "title": "AI Tasks",
+      "properties": {
+        "aiTasks.agentCommand": {
+          "type": "string",
+          "default": "claude",
+          "description": "Command that starts the agent in a new task's first terminal. Leave empty to start a plain shell."
+        },
+        "aiTasks.resumeActiveTaskOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "When the window opens, restart the active task's agent (resuming its Claude Code session)."
+        },
+        "aiTasks.baseBranch": {
+          "type": "string",
+          "default": "",
+          "description": "Branch the MR delta in Changes is computed against (e.g. origin/develop). Empty: the remote's default branch, else origin/main, origin/master, main, master."
+        },
+        "aiTasks.shell": {
+          "type": "string",
+          "default": "",
+          "description": "Shell used for task terminals. Empty: Windows PowerShell on Windows, $SHELL elsewhere."
+        },
+        "aiTasks.shellArgs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Arguments passed to the shell. Empty: -NoLogo for the default Windows PowerShell, -l on macOS."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "package": "npm run typecheck && npm run build && vsce package --no-dependencies --allow-missing-repository -o ai-tasks.vsix",
+    "publish:ovsx": "npm run package && npx --yes ovsx publish ai-tasks.vsix"
+  },
+  "dependencies": {
+    "@xterm/addon-serialize": "^0.13.0",
+    "@xterm/headless": "^5.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.100.0",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.6.0"
+  }
+}

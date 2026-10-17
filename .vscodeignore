@@ -1,0 +1,10 @@
+# Everything is excluded; only what the extension needs at run time goes into the package.
+**
+!package.json
+!README.md
+!CHANGELOG.md
+!LICENSE
+!dist/extension.js
+!hooks/hook.js
+!media/icon.png
+!media/activity.svg

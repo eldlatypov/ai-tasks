@@ -10,7 +10,7 @@ type Node =
   | { kind: 'artifacts'; task: Task }
   | { kind: 'terminal'; task: Task; terminal: BackgroundTerminal };
 
-const TASK_MIME = 'application/vnd.code.tree.aiide.tasks';
+const TASK_MIME = 'application/vnd.code.tree.aitasks.tasks';
 
 /**
  * Sidebar list of tasks with their artifacts file and terminals: management UI, and the main task switcher when
@@ -58,7 +58,7 @@ export class TasksView
       item.description = `${active ? '● ' : ''}${stateLabel(task.state)} · ${path.basename(task.data.cwd)}`;
       item.tooltip = `${task.name}\n${stateLabel(task.state)}\n${task.data.cwd}`;
       item.contextValue = 'task';
-      item.command = { command: 'aiIde.activateTask', title: 'Open Task', arguments: [task.id] };
+      item.command = { command: 'aiTasks.activateTask', title: 'Open Task', arguments: [task.id] };
       return item;
     }
     if (node.kind === 'artifacts') {
@@ -70,7 +70,7 @@ export class TasksView
       item.description = links > 0 ? `${links} link${links === 1 ? '' : 's'}` : 'empty';
       item.tooltip = 'Jira issues, merge requests, Confluence pages and the stand of this task';
       item.contextValue = 'artifacts';
-      item.command = { command: 'aiIde.openArtifacts', title: 'Open Artifacts', arguments: [task.id] };
+      item.command = { command: 'aiTasks.openArtifacts', title: 'Open Artifacts', arguments: [task.id] };
       return item;
     }
     const { task, terminal } = node;
@@ -79,7 +79,7 @@ export class TasksView
     item.iconPath = new vscode.ThemeIcon(terminal.kind === 'agent' ? 'hubot' : 'terminal');
     item.description = terminal.isShown ? '' : 'in background';
     item.contextValue = 'terminal';
-    item.command = { command: 'aiIde.showTerminal', title: 'Show Terminal', arguments: [task.id, terminal.id] };
+    item.command = { command: 'aiTasks.showTerminal', title: 'Show Terminal', arguments: [task.id, terminal.id] };
     return item;
   }
 

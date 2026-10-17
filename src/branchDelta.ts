@@ -84,9 +84,9 @@ function findBaseRef(root: string): Promise<string | undefined> {
   return ref;
 }
 
-/** `aiIde.baseBranch`, else the remote's default branch, else a usual name that exists. */
+/** `aiTasks.baseBranch`, else the remote's default branch, else a usual name that exists. */
 async function resolveBaseRef(root: string): Promise<string | undefined> {
-  const configured = vscode.workspace.getConfiguration('aiIde').get<string>('baseBranch', '').trim();
+  const configured = vscode.workspace.getConfiguration('aiTasks').get<string>('baseBranch', '').trim();
   const candidates = configured ? [configured] : [];
   const remoteHead = (await git(root, ['rev-parse', '--abbrev-ref', 'origin/HEAD'])).trim();
   if (remoteHead && remoteHead !== 'origin/HEAD') {

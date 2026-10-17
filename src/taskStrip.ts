@@ -3,25 +3,10 @@ import { LayoutMode } from './layoutMode';
 import { TaskManager } from './tasks';
 import { stateCodicon, stateLabel } from './ui';
 
-/**
- * Tasks as status bar items.
- *
- * They are the fallback task switcher, and at the same time the data source for the task strip
- * that the injected workbench script (injected/taskstrip.js) draws in the title bar: it reads the
- * `aiide:` aria-labels below, renders tabs, and forwards clicks to these items. That keeps the
- * injected part dumb and lets everything degrade to plain status bar items if it ever breaks.
- *
- * aria-label formats:
- *   aiide:task:<id>:<state>:<active 0|1>:<index>:<encoded name>
- *     (the index gives the order: VS Code keeps a re-created item at its old status bar position)
- *   aiide:new
- *   aiide:move      (arms a reorder: the next two task clicks are "dragged task", "drop target")
- *   aiide:mode:<agent|classic>
- */
+/** Tasks as status bar items: a task switcher that is always in view, plus the layout switch. */
 export class TaskStrip implements vscode.Disposable {
   private readonly items = new Map<string, vscode.StatusBarItem>();
   private readonly newTaskItem: vscode.StatusBarItem;
-  private readonly moveItem: vscode.StatusBarItem;
   private readonly modeItem: vscode.StatusBarItem;
   private readonly disposables: vscode.Disposable[] = [];
 
@@ -30,30 +15,20 @@ export class TaskStrip implements vscode.Disposable {
     private readonly layout: LayoutMode,
   ) {
     this.newTaskItem = vscode.window.createStatusBarItem('new-task', vscode.StatusBarAlignment.Left, 10000 - 999);
-    this.newTaskItem.name = 'AI IDE: New Task';
+    this.newTaskItem.name = 'AI Tasks: New Task';
     this.newTaskItem.text = '$(add)';
     this.newTaskItem.tooltip = 'New task (Ctrl+Alt+N)';
-    this.newTaskItem.command = 'aiIde.newTask';
-    this.newTaskItem.accessibilityInformation = { label: 'aiide:new' };
-
-    // Only for the title-bar strip; it hides this item.
-    this.moveItem = vscode.window.createStatusBarItem('move-task', vscode.StatusBarAlignment.Left, 10000 - 1000);
-    this.moveItem.name = 'AI IDE: Reorder Tasks';
-    this.moveItem.text = '$(arrow-swap)';
-    this.moveItem.command = 'aiIde.armMove';
-    this.moveItem.accessibilityInformation = { label: 'aiide:move' };
+    this.newTaskItem.command = 'aiTasks.newTask';
 
     this.modeItem = vscode.window.createStatusBarItem('mode', vscode.StatusBarAlignment.Right, -10000);
-    this.modeItem.name = 'AI IDE: Layout';
-    this.modeItem.command = 'aiIde.toggleMode';
+    this.modeItem.name = 'AI Tasks: Layout';
+    this.modeItem.command = 'aiTasks.toggleMode';
 
     this.disposables.push(
       this.newTaskItem,
-      this.moveItem,
       this.modeItem,
       tasks.onDidChange(() => this.render()),
       layout.onDidChange(() => this.render()),
-      vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration('aiIde.titleBarStrip') && this.render()),
     );
     this.render();
   }
@@ -62,7 +37,6 @@ export class TaskStrip implements vscode.Disposable {
     const agent = this.layout.mode === 'agent';
     this.modeItem.text = agent ? '$(layout) Agent' : '$(layout) Classic';
     this.modeItem.tooltip = agent ? 'Agent layout is on. Click for the classic VS Code layout.' : 'Click for the Agent layout.';
-    this.modeItem.accessibilityInformation = { label: `aiide:mode:${this.layout.mode}` };
     this.modeItem.show();
 
     const seen = new Set<string>();
@@ -78,16 +52,13 @@ export class TaskStrip implements vscode.Disposable {
       }
       if (!item) {
         item = vscode.window.createStatusBarItem(`task-${index}-${task.id}`, vscode.StatusBarAlignment.Left, priority);
-        item.name = `AI IDE Task: ${task.name}`;
+        item.name = `AI Tasks Task: ${task.name}`;
         this.items.set(task.id, item);
       }
       const active = task === this.tasks.active;
       item.text = `${stateCodicon(task.state)} ${active ? `[${task.name}]` : task.name}`;
       item.tooltip = `${task.name} — ${stateLabel(task.state)}\n${task.data.cwd}${index < 9 ? `\nCtrl+Alt+${index + 1}` : ''}`;
-      item.command = { command: 'aiIde.activateTask', title: 'Open Task', arguments: [task.id] };
-      item.accessibilityInformation = {
-        label: `aiide:task:${task.id}:${task.state}:${active ? 1 : 0}:${index}:${encodeURIComponent(task.name)}`,
-      };
+      item.command = { command: 'aiTasks.activateTask', title: 'Open Task', arguments: [task.id] };
       item.backgroundColor = task.state === 'waiting' ? new vscode.ThemeColor('statusBarItem.warningBackground') : undefined;
       if (agent) {
         item.show();
@@ -101,16 +72,10 @@ export class TaskStrip implements vscode.Disposable {
         this.items.delete(id);
       }
     }
-    const strip = vscode.workspace.getConfiguration('aiIde').get<boolean>('titleBarStrip', false);
-    for (const [item, visible] of [
-      [this.newTaskItem, agent],
-      [this.moveItem, agent && strip], // the strip hides it; without the strip it would be a stray button
-    ] as const) {
-      if (visible) {
-        item.show();
-      } else {
-        item.hide();
-      }
+    if (agent) {
+      this.newTaskItem.show();
+    } else {
+      this.newTaskItem.hide();
     }
   }
 

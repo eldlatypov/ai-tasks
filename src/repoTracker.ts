@@ -6,8 +6,8 @@ import { log } from './log';
 import { StatusWatcher } from './status';
 import { TaskManager } from './tasks';
 
-const STORAGE_KEY = 'aiIde.touchedRepos';
-const TASK_REPOS_KEY = 'aiIde.taskRepoRoots';
+const STORAGE_KEY = 'aiTasks.touchedRepos';
+const TASK_REPOS_KEY = 'aiTasks.taskRepoRoots';
 
 /**
  * Makes the git extension (and so the Changes view) see every repository the agents work in,

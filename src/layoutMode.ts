@@ -4,23 +4,18 @@ export type Mode = 'agent' | 'classic';
 
 /** User settings the Agent layout changes; Classic restores whatever the user had before. */
 function agentSettings(): Record<string, unknown> {
-  const settings: Record<string, unknown> = {
+  return {
     'terminal.integrated.defaultLocation': 'editor',
     'scm.defaultViewMode': 'tree',
     'workbench.editor.closeEmptyGroups': true,
     // The chat panel on the right competes with the task's files for space.
     'workbench.secondarySideBar.defaultVisibility': 'hidden',
   };
-  if (vscode.workspace.getConfiguration('aiIde').get<boolean>('titleBarStrip', false)) {
-    // The title-bar task strip takes the command center's place.
-    settings['window.commandCenter'] = false;
-  }
-  return settings;
 }
 
-const MODE_KEY = 'aiIde.mode';
-const SNAPSHOT_KEY = 'aiIde.classicSnapshot';
-const AUX_CLOSED_KEY = 'aiIde.auxiliaryBarClosed';
+const MODE_KEY = 'aiTasks.mode';
+const SNAPSHOT_KEY = 'aiTasks.classicSnapshot';
+const AUX_CLOSED_KEY = 'aiTasks.auxiliaryBarClosed';
 
 export class LayoutMode implements vscode.Disposable {
   private readonly emitter = new vscode.EventEmitter<Mode>();
@@ -38,7 +33,7 @@ export class LayoutMode implements vscode.Disposable {
       const firstStart = this.context.globalState.get(SNAPSHOT_KEY) === undefined;
       await this.applyAgent(true);
       if (firstStart) {
-        await vscode.commands.executeCommand('workbench.view.extension.aiIde');
+        await vscode.commands.executeCommand('workbench.view.extension.aiTasks');
       }
       // VS Code opens the chat panel in every new folder; close it once, later it is the user's call.
       if (!this.context.workspaceState.get<boolean>(AUX_CLOSED_KEY)) {
@@ -57,7 +52,7 @@ export class LayoutMode implements vscode.Disposable {
     } else {
       await this.applyAgent();
       await this.context.globalState.update(MODE_KEY, 'agent');
-      await vscode.commands.executeCommand('workbench.view.extension.aiIde');
+      await vscode.commands.executeCommand('workbench.view.extension.aiTasks');
       await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
     }
     await this.setContext();
@@ -91,7 +86,7 @@ export class LayoutMode implements vscode.Disposable {
   }
 
   private async setContext(): Promise<void> {
-    await vscode.commands.executeCommand('setContext', 'aiIde.agentMode', this.mode === 'agent');
+    await vscode.commands.executeCommand('setContext', 'aiTasks.agentMode', this.mode === 'agent');
   }
 
   dispose(): void {

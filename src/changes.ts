@@ -174,7 +174,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
 
   setMode(mode: ChangesMode): void {
     this.mode = mode;
-    void vscode.commands.executeCommand('setContext', 'aiIde.changesMode', mode);
+    void vscode.commands.executeCommand('setContext', 'aiTasks.changesMode', mode);
     if (this.treeView) {
       this.treeView.title = mode === 'branch' ? 'Changes · MR delta' : 'Changes';
     }
@@ -353,7 +353,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     item.description = STATUS_LETTER[node.status] ?? '';
     item.tooltip = `${path.relative(node.repo.rootUri.fsPath, node.uri.fsPath)} — ${item.description}`;
     item.contextValue = 'change';
-    item.command = { command: 'aiIde.openChange', title: 'Open Changes', arguments: [node] };
+    item.command = { command: 'aiTasks.openChange', title: 'Open Changes', arguments: [node] };
     return item;
   }
 

@@ -53,7 +53,7 @@ export class Task {
   }
 }
 
-const STORAGE_KEY = 'aiIde.tasks';
+const STORAGE_KEY = 'aiTasks.tasks';
 /** Terminals of the active task live in the left editor group, its files to the right (see fileColumn). */
 const TERMINAL_COLUMN = vscode.ViewColumn.One;
 const TERMINAL_SCHEME = 'vscode-terminal';
@@ -272,7 +272,7 @@ export class TaskManager implements vscode.Disposable {
   }
 
   private startAgent(task: Task): boolean {
-    const command = vscode.workspace.getConfiguration('aiIde').get<string>('agentCommand', 'claude').trim();
+    const command = vscode.workspace.getConfiguration('aiTasks').get<string>('agentCommand', 'claude').trim();
     let initial: string | undefined;
     if (command) {
       initial = command;
@@ -288,7 +288,7 @@ export class TaskManager implements vscode.Disposable {
   }
 
   private spawn(task: Task, kind: TerminalKind, name: string, initialCommand?: string): BackgroundTerminal | undefined {
-    const config = vscode.workspace.getConfiguration('aiIde');
+    const config = vscode.workspace.getConfiguration('aiTasks');
     let cwd = task.data.cwd;
     if (!fs.existsSync(cwd)) {
       vscode.window.showWarningMessage(`Folder ${cwd} no longer exists, starting in the workspace root.`);
@@ -305,16 +305,16 @@ export class TaskManager implements vscode.Disposable {
         env:
           kind === 'agent'
             ? {
-                AI_IDE_TASK: task.id,
-                AI_IDE_STATUS_FILE: this.status.statusFileFor(task.id),
-                AI_IDE_ARTIFACTS_FILE: this.artifacts.ensure(task.id, task.name),
+                AI_TASKS_TASK: task.id,
+                AI_TASKS_STATUS_FILE: this.status.statusFileFor(task.id),
+                AI_TASKS_ARTIFACTS_FILE: this.artifacts.ensure(task.id, task.name),
               }
-            : { AI_IDE_TASK: task.id },
+            : { AI_TASKS_TASK: task.id },
         initialCommand,
       });
     } catch (err) {
       log.error('cannot start terminal', err);
-      vscode.window.showErrorMessage(`AI IDE: cannot start terminal: ${String(err)}`);
+      vscode.window.showErrorMessage(`AI Tasks: cannot start terminal: ${String(err)}`);
       return undefined;
     }
     task.terminals.push(term);
@@ -568,7 +568,7 @@ function safeReaddir(dir: string): string[] {
   }
 }
 
-/** The `aiIde.shell` setting, or the platform's usual shell when it is empty. */
+/** The `aiTasks.shell` setting, or the platform's usual shell when it is empty. */
 function shellCommand(config: vscode.WorkspaceConfiguration): { shell: string; shellArgs: string[] } {
   const shell = config.get<string>('shell', '').trim();
   const args = config.get<string[]>('shellArgs', []);

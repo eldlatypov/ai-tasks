@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// Claude Code hook: records the agent state of an AI IDE task.
-// Wired up only for terminals started by the AI IDE extension (via `claude --settings <file>`),
-// which pass AI_IDE_STATUS_FILE in the environment. Anywhere else it is a no-op.
+// Claude Code hook: records the agent state of a task in the AI Tasks VS Code extension.
+// Wired up only for terminals started by the AI Tasks extension (via `claude --settings <file>`),
+// which pass AI_TASKS_STATUS_FILE in the environment. Anywhere else it is a no-op.
 'use strict';
 const fs = require('fs');
 const path = require('path');
 
-const file = process.env.AI_IDE_STATUS_FILE;
+const file = process.env.AI_TASKS_STATUS_FILE;
 if (!file) {
   process.exit(0);
 }
@@ -153,10 +153,10 @@ function fromGitBash(p) {
 
 /** Asks the agent to keep the task's artifacts file (shown under the task in the Tasks view). */
 function tellAboutArtifacts() {
-  const artifacts = process.env.AI_IDE_ARTIFACTS_FILE;
+  const artifacts = process.env.AI_TASKS_ARTIFACTS_FILE;
   if (!artifacts) return;
   const context =
-    `This session is an AI IDE task. Its artifacts file is ${artifacts.replace(/\\/g, '/')} ` +
+    `This session is a task in the AI Tasks VS Code extension. Its artifacts file is ${artifacts.replace(/\\/g, '/')} ` +
     '(Markdown, sections: Jira, Merge requests, Confluence, Stand). Whenever you create, find or are given ' +
     "a link to this task's Jira issue, a merge request in any repository, a Confluence page you read or edited, " +
     'or the feature stand, add it to the matching section as `- [title](url)` with a short note ' +
