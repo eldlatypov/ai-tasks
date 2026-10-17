@@ -5,7 +5,7 @@
 repositories and the links it produced. Switch tasks like browser tabs: the others keep working in
 the background and tell you when they need you.
 
-![A task: the agent asks to edit a file on the left, the merge request delta it is working on on the right](media/screenshots/tasks-and-mr-delta.png)
+[![A task: the agent asks to edit a file on the left, the merge request delta it is working on on the right](media/screenshots/tasks-and-mr-delta.png)](https://github.com/eldlatypov/ai-tasks/raw/HEAD/media/screenshots/tasks-and-mr-delta.png)
 
 ## Every task knows its state
 
@@ -16,7 +16,7 @@ up and raises a notification, so you can leave agents running and come back when
 Switching tasks hides the other task's terminals and files and brings back this one's, exactly as
 you left them. The processes keep running; showing a terminal again replays its screen.
 
-![Another task: its own repository in Changes and the review its agent finished in the background, while the first task waits for an answer](media/screenshots/task-switch.png)
+[![Another task: its own repository in Changes and the review its agent finished in the background, while the first task waits for an answer](media/screenshots/task-switch.png)](https://github.com/eldlatypov/ai-tasks/raw/HEAD/media/screenshots/task-switch.png)
 
 ## The merge request delta, across repositories
 
@@ -30,7 +30,7 @@ one list. Click a file for the diff; switch to plain uncommitted changes from th
 Under each task, **Artifacts** keeps the links the work produced: the Jira issue, merge requests in
 every repository, Confluence pages, the feature stand. The agent adds them as it goes.
 
-![The artifacts of a task: Jira issue, two merge requests, a Confluence page and the stand](media/screenshots/artifacts.png)
+[![The artifacts of a task: Jira issue, two merge requests, a Confluence page and the stand](media/screenshots/artifacts.png)](https://github.com/eldlatypov/ai-tasks/raw/HEAD/media/screenshots/artifacts.png)
 
 ## Your VS Code stays yours
 
@@ -40,7 +40,7 @@ offered once and lives in **Get Started with AI Tasks**; one click in the status
 settings back. Restore them before uninstalling: VS Code gives an extension no way to undo settings
 when it is removed.
 
-![Get Started with AI Tasks](media/screenshots/get-started.png)
+[![Get Started with AI Tasks](media/screenshots/get-started.png)](https://github.com/eldlatypov/ai-tasks/raw/HEAD/media/screenshots/get-started.png)
 
 ## Getting started
 

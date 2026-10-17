@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2
+
+- Screenshots on the store page open full size on click.
+
 ## 0.1.1
 
 - Store page with screenshots; source on GitHub.
