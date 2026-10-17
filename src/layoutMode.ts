@@ -2,19 +2,23 @@ import * as vscode from 'vscode';
 
 export type Mode = 'agent' | 'classic';
 
-/** User settings the Agent layout changes; Classic restores whatever the user had before. */
-function agentSettings(): Record<string, unknown> {
-  return {
-    'terminal.integrated.defaultLocation': 'editor',
-    'scm.defaultViewMode': 'tree',
-    'workbench.editor.closeEmptyGroups': true,
-    // The chat panel on the right competes with the task's files for space.
-    'workbench.secondarySideBar.defaultVisibility': 'hidden',
-  };
-}
+/**
+ * User settings the Agent layout changes; Classic restores whatever the user had before.
+ * Nothing here is needed for tasks to work, so they are only applied when the user asks.
+ */
+export const AGENT_SETTINGS: Readonly<Record<string, unknown>> = {
+  // Regular terminals open next to the task terminals instead of in the panel.
+  'terminal.integrated.defaultLocation': 'editor',
+  // Closing a task's last file leaves just its terminals.
+  'workbench.editor.closeEmptyGroups': true,
+  'scm.defaultViewMode': 'tree',
+  // The chat panel on the right competes with the task's files for space.
+  'workbench.secondarySideBar.defaultVisibility': 'hidden',
+};
 
 const MODE_KEY = 'aiTasks.mode';
 const SNAPSHOT_KEY = 'aiTasks.classicSnapshot';
+const OFFERED_KEY = 'aiTasks.layoutOffered';
 const AUX_CLOSED_KEY = 'aiTasks.auxiliaryBarClosed';
 
 export class LayoutMode implements vscode.Disposable {
@@ -24,50 +28,76 @@ export class LayoutMode implements vscode.Disposable {
   constructor(private readonly context: vscode.ExtensionContext) {}
 
   get mode(): Mode {
-    return this.context.globalState.get<Mode>(MODE_KEY, 'agent');
+    return this.context.globalState.get<Mode>(MODE_KEY, 'classic');
   }
 
-  /** Agent is the default: applied on first start, and settings added in later versions are applied on update. */
   async initialize(): Promise<void> {
+    await this.setContext();
     if (this.mode === 'agent') {
-      const firstStart = this.context.globalState.get(SNAPSHOT_KEY) === undefined;
-      await this.applyAgent(true);
-      if (firstStart) {
-        await vscode.commands.executeCommand('workbench.view.extension.aiTasks');
-      }
       // VS Code opens the chat panel in every new folder; close it once, later it is the user's call.
       if (!this.context.workspaceState.get<boolean>(AUX_CLOSED_KEY)) {
         await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
         await this.context.workspaceState.update(AUX_CLOSED_KEY, true);
       }
-    }
-    await this.setContext();
-  }
-
-  async toggle(): Promise<void> {
-    if (this.mode === 'agent') {
-      await this.restoreClassic();
-      await this.context.globalState.update(MODE_KEY, 'classic');
-      await vscode.commands.executeCommand('workbench.view.explorer');
-    } else {
-      await this.applyAgent();
-      await this.context.globalState.update(MODE_KEY, 'agent');
+    } else if (!this.context.globalState.get<boolean>(OFFERED_KEY)) {
+      await this.context.globalState.update(OFFERED_KEY, true);
       await vscode.commands.executeCommand('workbench.view.extension.aiTasks');
-      await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
+      void this.offer();
     }
-    await this.setContext();
-    this.emitter.fire(this.mode);
   }
 
-  /** @param onlyNewKeys keep the existing snapshot and apply only settings it does not cover yet */
-  private async applyAgent(onlyNewKeys = false): Promise<void> {
-    const existing = onlyNewKeys ? this.context.globalState.get<Record<string, unknown>>(SNAPSHOT_KEY) : undefined;
-    const snapshot: Record<string, unknown> = { ...existing };
+  /** Asked once, on the first start: the settings are the user's, so nothing changes without a yes. */
+  private async offer(): Promise<void> {
+    const apply = 'Apply';
+    const details = 'What Changes?';
+    const choice = await vscode.window.showInformationMessage(
+      'AI Tasks: use the Agent layout? Terminals open as editor tabs, empty editor groups close, the chat side bar stays hidden. ' +
+        'You can switch back to your layout at any time from the status bar.',
+      apply,
+      details,
+      'Not Now',
+    );
+    if (choice === apply) {
+      await this.useAgent();
+    } else if (choice === details) {
+      await vscode.commands.executeCommand(
+        'workbench.action.openWalkthrough',
+        { category: `${this.context.extension.id}#aiTasks.start`, step: 'layout' },
+        false,
+      );
+    }
+  }
+
+  toggle(): Promise<void> {
+    return this.mode === 'agent' ? this.useClassic() : this.useAgent();
+  }
+
+  async useAgent(): Promise<void> {
+    if (this.mode !== 'agent') {
+      await this.applyAgent();
+      await this.setMode('agent');
+    }
+    await vscode.commands.executeCommand('workbench.view.extension.aiTasks');
+    await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
+  }
+
+  async useClassic(): Promise<void> {
+    if (this.mode !== 'classic') {
+      await this.restoreClassic();
+      await this.setMode('classic');
+    }
+  }
+
+  private async setMode(mode: Mode): Promise<void> {
+    await this.context.globalState.update(MODE_KEY, mode);
+    await this.setContext();
+    this.emitter.fire(mode);
+  }
+
+  private async applyAgent(): Promise<void> {
+    const snapshot: Record<string, unknown> = {};
     const config = vscode.workspace.getConfiguration();
-    for (const [key, value] of Object.entries(agentSettings())) {
-      if (existing && key in existing) {
-        continue;
-      }
+    for (const [key, value] of Object.entries(AGENT_SETTINGS)) {
       // null marks "was not set", so restoring removes the key instead of writing a default.
       snapshot[key] = config.inspect(key)?.globalValue ?? null;
       await config.update(key, value, vscode.ConfigurationTarget.Global);
@@ -78,11 +108,14 @@ export class LayoutMode implements vscode.Disposable {
   private async restoreClassic(): Promise<void> {
     const snapshot = this.context.globalState.get<Record<string, unknown>>(SNAPSHOT_KEY) ?? {};
     const config = vscode.workspace.getConfiguration();
-    // Everything the snapshot covers, even if the set of Agent settings has changed since.
-    for (const key of Object.keys(snapshot)) {
-      const value = snapshot[key];
+    for (const [key, value] of Object.entries(snapshot)) {
+      // A setting the user changed by hand since is theirs now; leave it.
+      if (key in AGENT_SETTINGS && config.inspect(key)?.globalValue !== AGENT_SETTINGS[key]) {
+        continue;
+      }
       await config.update(key, value === null ? undefined : value, vscode.ConfigurationTarget.Global);
     }
+    await this.context.globalState.update(SNAPSHOT_KEY, undefined);
   }
 
   private async setContext(): Promise<void> {

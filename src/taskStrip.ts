@@ -36,7 +36,9 @@ export class TaskStrip implements vscode.Disposable {
   private render(): void {
     const agent = this.layout.mode === 'agent';
     this.modeItem.text = agent ? '$(layout) Agent' : '$(layout) Classic';
-    this.modeItem.tooltip = agent ? 'Agent layout is on. Click for the classic VS Code layout.' : 'Click for the Agent layout.';
+    this.modeItem.tooltip = agent
+      ? 'AI Tasks: Agent layout is on. Click to restore your own layout settings.'
+      : 'AI Tasks: click for the Agent layout (terminals as editor tabs, empty groups close, chat side bar hidden).';
     this.modeItem.show();
 
     const seen = new Set<string>();
@@ -60,11 +62,7 @@ export class TaskStrip implements vscode.Disposable {
       item.tooltip = `${task.name} — ${stateLabel(task.state)}\n${task.data.cwd}${index < 9 ? `\nCtrl+Alt+${index + 1}` : ''}`;
       item.command = { command: 'aiTasks.activateTask', title: 'Open Task', arguments: [task.id] };
       item.backgroundColor = task.state === 'waiting' ? new vscode.ThemeColor('statusBarItem.warningBackground') : undefined;
-      if (agent) {
-        item.show();
-      } else {
-        item.hide();
-      }
+      item.show();
     });
     for (const [id, item] of this.items) {
       if (!seen.has(id)) {
@@ -72,11 +70,7 @@ export class TaskStrip implements vscode.Disposable {
         this.items.delete(id);
       }
     }
-    if (agent) {
-      this.newTaskItem.show();
-    } else {
-      this.newTaskItem.hide();
-    }
+    this.newTaskItem.show();
   }
 
   dispose(): void {

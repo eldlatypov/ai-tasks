@@ -11,5 +11,7 @@ First public release.
   the feature stand, kept up to date by the agent.
 - Changes: changed files across the repositories of the active task, as uncommitted changes or as
   the MR delta against the base branch.
+- Agent layout: optional, offered once on the first start and in the Get Started walkthrough;
+  your previous settings come back with one click.
 - Ctrl+V pastes into task terminals on Windows even when VS Code's PowerShell paste binding is
   active.

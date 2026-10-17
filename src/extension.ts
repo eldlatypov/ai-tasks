@@ -59,6 +59,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       tasks.killTerminal(arg.task.id, arg.terminal.id),
     ),
     vscode.commands.registerCommand('aiTasks.toggleMode', () => layout.toggle()),
+    vscode.commands.registerCommand('aiTasks.useAgentLayout', () => layout.useAgent()),
+    vscode.commands.registerCommand('aiTasks.useClassicLayout', () => layout.useClassic()),
     vscode.commands.registerCommand('aiTasks.showExplorer', () => vscode.commands.executeCommand('workbench.view.explorer')),
     vscode.commands.registerCommand('aiTasks.showChanges', () =>
       vscode.commands.executeCommand('workbench.view.extension.aiTasks'),

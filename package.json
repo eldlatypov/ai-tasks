@@ -116,6 +116,16 @@
         "category": "AI Tasks"
       },
       {
+        "command": "aiTasks.useAgentLayout",
+        "title": "Use the Agent Layout (changes a few settings)",
+        "category": "AI Tasks"
+      },
+      {
+        "command": "aiTasks.useClassicLayout",
+        "title": "Restore My Layout Settings",
+        "category": "AI Tasks"
+      },
+      {
         "command": "aiTasks.showExplorer",
         "title": "Show Full Explorer",
         "category": "AI Tasks",
@@ -256,7 +266,16 @@
         {
           "command": "aiTasks.switchToIndex",
           "when": "false"
-        }      ]
+        },
+        {
+          "command": "aiTasks.useAgentLayout",
+          "when": "!aiTasks.agentMode"
+        },
+        {
+          "command": "aiTasks.useClassicLayout",
+          "when": "aiTasks.agentMode"
+        }
+      ]
     },
     "keybindings": [
       { "command": "aiTasks.newTask", "key": "ctrl+alt+n" },
@@ -271,6 +290,42 @@
       { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+7", "args": 6 },
       { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+8", "args": 7 },
       { "command": "aiTasks.switchToIndex", "key": "ctrl+alt+9", "args": 8 }
+    ],
+    "walkthroughs": [
+      {
+        "id": "aiTasks.start",
+        "title": "Get Started with AI Tasks",
+        "description": "Run CLI agents as tasks, each with its own terminals, files, repositories and links.",
+        "steps": [
+          {
+            "id": "agent",
+            "title": "Install the agent CLI",
+            "description": "Each task starts `claude` (Claude Code) in its first terminal. Install it and check that `claude` runs in a terminal, or set another command.\n[Install Claude Code](https://docs.claude.com/en/docs/claude-code/setup)\n[Agent Command Setting](command:workbench.action.openSettings?%5B%22aiTasks.agentCommand%22%5D)",
+            "media": { "markdown": "media/walkthrough/agent.md" }
+          },
+          {
+            "id": "layout",
+            "title": "Choose a layout",
+            "description": "Optional. The Agent layout changes four of your settings so that a task's terminals and files sit side by side. Your values are kept and come back when you click **Agent** in the status bar.\n[Use the Agent Layout](command:aiTasks.useAgentLayout)",
+            "media": { "markdown": "media/walkthrough/layout.md" },
+            "completionEvents": ["onContext:aiTasks.agentMode"]
+          },
+          {
+            "id": "task",
+            "title": "Start a task",
+            "description": "A task is an agent with its own terminals and files. Tasks are in the AI Tasks view and the status bar.\n[New Task](command:aiTasks.newTask)",
+            "media": { "markdown": "media/walkthrough/tasks.md" },
+            "completionEvents": ["onCommand:aiTasks.newTask"]
+          },
+          {
+            "id": "changes",
+            "title": "Review the MR delta",
+            "description": "The Changes view shows what the task's branches change against their base branch, across all the repositories it touched.\n[Open Changes](command:aiTasks.showChanges)\n[Base Branch Setting](command:workbench.action.openSettings?%5B%22aiTasks.baseBranch%22%5D)",
+            "media": { "markdown": "media/walkthrough/changes.md" },
+            "completionEvents": ["onView:aiTasks.changes"]
+          }
+        ]
+      }
     ],
     "configuration": {
       "title": "AI Tasks",

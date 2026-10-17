@@ -36,9 +36,28 @@ links it produced.
   - **MR delta**: everything the branch changes against the base branch (merge base → working
     tree, untracked files included), what reviewers will see in the merge request;
   - **uncommitted changes**: working tree against HEAD.
-- **Agent / Classic** layout switch in the status bar.
+- **Agent layout**, optional: a few settings that put a task's terminals and files side by side
+  (see below), switched on and off from the status bar.
 - After a window reload tasks are kept and the active task's agent resumes its session
   (`claude --resume`).
+
+## Your settings
+
+AI Tasks works in your normal VS Code profile and does not change your settings by itself. On the
+first start it offers the Agent layout once; it is also in **Get Started with AI Tasks**
+(Help › Welcome › Walkthroughs) and in the command **AI Tasks: Use the Agent Layout**. It sets:
+
+| Setting | Value |
+|---|---|
+| `terminal.integrated.defaultLocation` | `editor`: terminals open as editor tabs |
+| `workbench.editor.closeEmptyGroups` | `true`: closing a task's last file leaves its terminals |
+| `scm.defaultViewMode` | `tree` |
+| `workbench.secondarySideBar.defaultVisibility` | `hidden`: the chat side bar stays closed |
+
+Your previous values are kept. Click **Agent** in the status bar or run **AI Tasks: Restore My
+Layout Settings** to get them back; a setting you changed by hand in the meantime stays as you set
+it. **Restore before uninstalling**: VS Code gives an extension no way to undo settings when it is
+removed.
 
 ## Requirements
 
@@ -91,4 +110,5 @@ Publishing to [Open VSX](https://open-vsx.org): bump `version`, add a CHANGELOG 
 - `src/changes.ts`, `src/branchDelta.ts`, `src/repoTracker.ts`: the Changes view over the
   active task's repositories, uncommitted or as the MR delta.
 - `src/taskStrip.ts`: tasks and the layout switch in the status bar.
-- `src/layoutMode.ts`: Agent / Classic, applies a few settings and restores the previous values.
+- `src/layoutMode.ts`: the optional Agent layout: offers it once, applies a few settings and
+  restores the previous values.
