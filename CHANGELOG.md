@@ -5,6 +5,9 @@
 - New task state, waiting for background work: the agent ended its turn but a Monitor watch, a
   background command or agent, or a scheduled wakeup it started is still pending. Shown with a
   telescope icon; the tooltip lists what it waits on. Before, such a task showed as finished.
+- Updates in VS Code: AI Tasks checks Open VSX once a day and offers to install a new version
+  (checksum-verified), as VS Code itself only updates extensions from its own marketplace. Command
+  **Check for Updates**, setting `aiTasks.checkForUpdates`. Other editors update from Open VSX as before.
 
 ## 0.1.2
 

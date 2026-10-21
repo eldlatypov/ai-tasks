@@ -58,7 +58,13 @@ reload the tasks are kept and the active one resumes its session.
 **Settings:** `aiTasks.agentCommand` (default `claude`), `aiTasks.baseBranch` (the MR delta's base
 when it is not the remote's default branch, e.g. `origin/develop`), `aiTasks.shell` and
 `aiTasks.shellArgs` (default: PowerShell on Windows, `$SHELL` elsewhere),
-`aiTasks.resumeActiveTaskOnStartup`.
+`aiTasks.resumeActiveTaskOnStartup`, `aiTasks.checkForUpdates`.
+
+**Updates:** Cursor, Windsurf, VSCodium and other editors that install from Open VSX update AI Tasks
+themselves. VS Code only updates extensions from Microsoft's marketplace, so there AI Tasks looks
+for a new version on Open VSX once a day and offers to install it (the package is checked against
+its SHA-256 first). **AI Tasks: Check for Updates** does it on demand; `aiTasks.checkForUpdates`
+turns it off.
 
 ## Development
 

@@ -134,6 +134,11 @@
         "category": "AI Tasks"
       },
       {
+        "command": "aiTasks.checkForUpdates",
+        "title": "Check for Updates",
+        "category": "AI Tasks"
+      },
+      {
         "command": "aiTasks.showExplorer",
         "title": "Show Full Explorer",
         "category": "AI Tasks",
@@ -407,6 +412,11 @@
           "type": "boolean",
           "default": true,
           "description": "When the window opens, restart the active task's agent (resuming its Claude Code session)."
+        },
+        "aiTasks.checkForUpdates": {
+          "type": "boolean",
+          "default": true,
+          "description": "In VS Code, look for a new version on Open VSX once a day and offer to install it. (Cursor, Windsurf, VSCodium and other editors that install from Open VSX update extensions themselves; there this does nothing.)"
         },
         "aiTasks.baseBranch": {
           "type": "string",

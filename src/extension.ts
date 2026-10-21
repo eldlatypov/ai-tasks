@@ -7,6 +7,7 @@ import { StatusWatcher } from './status';
 import { fileColumn, TaskManager } from './tasks';
 import { TasksView } from './tasksView';
 import { TaskStrip } from './taskStrip';
+import { Updater } from './updater';
 
 /** Commands receive either ids (from the status bar / keybindings) or tree nodes (from view menus). */
 type TaskArg = string | { task?: { id: string } } | undefined;
@@ -25,6 +26,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const layout = new LayoutMode(context);
   const tasksView = new TasksView(tasks, artifacts);
   const strip = new TaskStrip(tasks, layout);
+  const updater = new Updater(context);
 
   context.subscriptions.push(
     status,
@@ -33,6 +35,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     layout,
     tasksView,
     strip,
+    updater,
+    vscode.commands.registerCommand('aiTasks.checkForUpdates', () => updater.check(true)),
     vscode.window.createTreeView('aiTasks.tasks', { treeDataProvider: tasksView, dragAndDropController: tasksView }),
 
     vscode.commands.registerCommand('aiTasks.newTask', () => tasks.createTask()),
