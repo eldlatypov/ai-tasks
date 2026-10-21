@@ -13,7 +13,7 @@ const LABELS: Record<AgentState, string> = {
 const CODICONS: Record<AgentState, string> = {
   thinking: 'loading~spin',
   waiting: 'bell-dot',
-  background: 'watch',
+  background: 'telescope',
   done: 'pass-filled',
   idle: 'circle-outline',
   stopped: 'circle-slash',
