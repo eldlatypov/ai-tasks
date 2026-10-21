@@ -6,10 +6,19 @@ import * as vscode from 'vscode';
  * - thinking: the agent is working on a turn
  * - waiting:  the agent is blocked on the user (permission prompt, question)
  * - done:     the agent finished its turn and the user has not looked yet
+ * - background: the turn ended, but the agent waits for background work it started (a Monitor
+ *               watch, a background command or agent, a scheduled wakeup) and will resume
  * - idle:     nothing is happening
  * - stopped:  no process (e.g. after a window reload, before the task is reopened)
  */
-export type AgentState = 'thinking' | 'waiting' | 'done' | 'idle' | 'stopped';
+export type AgentState = 'thinking' | 'waiting' | 'background' | 'done' | 'idle' | 'stopped';
+
+/** Background work an agent waits on, from the Stop hook. */
+export interface PendingWork {
+  /** shell (also Monitor watches), agent, scheduled, ... */
+  kind: string;
+  label: string;
+}
 
 /**
  * Per-task journal of paths the agent wrote to. Older versions kept reads too, in `.touched`
@@ -22,6 +31,7 @@ export interface StatusRecord {
   event?: string;
   sessionId?: string;
   message?: string;
+  background?: PendingWork[];
   ts: number;
 }
 

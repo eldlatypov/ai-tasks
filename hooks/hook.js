@@ -41,11 +41,19 @@ function finish() {
     state = 'waiting';
   }
 
+  // A turn that ends with a Monitor watch, a background command or agent still running, or a
+  // scheduled wakeup, is not finished: the agent resumes when that work reports back.
+  const background = payload.hook_event_name === 'Stop' ? pendingWork(payload) : [];
+  if (background.length > 0) {
+    state = 'background';
+  }
+
   const record = {
     state,
     event: payload.hook_event_name,
     sessionId: payload.session_id,
     message: payload.message,
+    background: background.length > 0 ? background : undefined,
     ts: Date.now(),
   };
   try {
@@ -71,6 +79,27 @@ function finish() {
     }
   }
   process.exit(0);
+}
+
+/**
+ * What the Stop payload says the agent still waits on: `background_tasks` (Monitor watches show
+ * up as shells, with their description) that have not ended, and `session_crons`.
+ */
+function pendingWork(payload) {
+  const ended = /^(completed|failed|killed|stopped|cancell?ed|done|error)$/i;
+  const tasks = Array.isArray(payload.background_tasks) ? payload.background_tasks : [];
+  const crons = Array.isArray(payload.session_crons) ? payload.session_crons : [];
+  return [
+    ...tasks
+      .filter((t) => t && !ended.test(String(t.status ?? '')))
+      .map((t) => ({ kind: String(t.type || 'task'), label: short(t.description || t.command || t.name || t.agent_type || t.id) })),
+    ...crons.map((c) => ({ kind: 'scheduled', label: short([c.schedule, c.prompt].filter(Boolean).join(': ')) })),
+  ];
+}
+
+function short(text) {
+  const line = String(text ?? '').split('\n')[0].trim();
+  return line.length > 80 ? line.slice(0, 79) + '…' : line;
 }
 
 /** Tools that write the file named in their input. */

@@ -2,7 +2,9 @@
 
 A task is an agent terminal, the extra terminals you open in it and the files you open while it
 is active. Switching tasks hides the other task's terminals and files; their processes keep
-running, and a task that needs your input shows a bell and a notification.
+running, and a task that needs your input shows a bell and a notification. A task whose agent
+waits for its own background work (a Monitor watch, a background command, a scheduled wakeup)
+shows a watch icon until that work reports back.
 
 | Keys | |
 |---|---|

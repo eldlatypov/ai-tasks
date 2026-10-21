@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3
+
+- New task state, waiting for background work: the agent ended its turn but a Monitor watch, a
+  background command or agent, or a scheduled wakeup it started is still pending. Shown with a
+  watch icon; the tooltip lists what it waits on. Before, such a task showed as finished.
+
 ## 0.1.2
 
 - Screenshots on the store page open full size on click.

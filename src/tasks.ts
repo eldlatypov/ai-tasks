@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 import { ArtifactsStore } from './artifacts';
 import { BackgroundTerminal, TerminalKind } from './backgroundTerminal';
 import { log } from './log';
-import { AgentState, StatusRecord, StatusWatcher } from './status';
+import { AgentState, PendingWork, StatusRecord, StatusWatcher } from './status';
 import { stateLabel } from './ui';
 
 type SavedEditor =
@@ -30,6 +30,8 @@ interface SavedState {
 
 export class Task {
   state: AgentState = 'idle';
+  /** What the agent waits on while in the background state. */
+  background: PendingWork[] = [];
   readonly terminals: BackgroundTerminal[] = [];
   private shellCounter = 1;
 
@@ -352,6 +354,7 @@ export class TaskManager implements vscode.Disposable {
     }
     const previous = task.state;
     task.state = record.state;
+    task.background = record.background ?? [];
     if (record.state === 'waiting' && previous !== 'waiting' && task.id !== this.activeId) {
       void vscode.window
         .showInformationMessage(`"${task.name}" needs your input${record.message ? `: ${record.message}` : ''}`, 'Open Task')

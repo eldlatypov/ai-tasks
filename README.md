@@ -10,8 +10,10 @@ the background and tell you when they need you.
 ## Every task knows its state
 
 The Tasks view and the status bar show what each agent is doing: working, **needs your input**
-(a permission prompt or a question), finished, idle. A task that needs you in the background lights
-up and raises a notification, so you can leave agents running and come back when it matters.
+(a permission prompt or a question), **waiting for background work** (its turn is over but a
+Monitor watch, a background command or agent, or a scheduled wakeup will bring it back; the tooltip
+lists them), finished, idle. A task that needs you in the background lights up and raises a
+notification, so you can leave agents running and come back when it matters.
 
 Switching tasks hides the other task's terminals and files and brings back this one's, exactly as
 you left them. The processes keep running; showing a terminal again replays its screen.

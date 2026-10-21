@@ -2,7 +2,7 @@
   "name": "ai-tasks",
   "displayName": "AI Tasks",
   "description": "Task tabs for CLI AI agents (Claude Code): per-task terminals that keep running in the background, agent status on each task, task links (Jira, MRs, Confluence, stand) and an MR-delta Changes view across repos.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "eldlatypov",
   "license": "MIT",
   "icon": "media/icon.png",

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { LayoutMode } from './layoutMode';
 import { TaskManager } from './tasks';
-import { stateCodicon, stateLabel } from './ui';
+import { pendingWorkLines, stateCodicon, stateLabel } from './ui';
 
 /** Tasks as status bar items: a task switcher that is always in view, plus the layout switch. */
 export class TaskStrip implements vscode.Disposable {
@@ -59,7 +59,8 @@ export class TaskStrip implements vscode.Disposable {
       }
       const active = task === this.tasks.active;
       item.text = `${stateCodicon(task.state)} ${active ? `[${task.name}]` : task.name}`;
-      item.tooltip = `${task.name} — ${stateLabel(task.state)}\n${task.data.cwd}${index < 9 ? `\nCtrl+Alt+${index + 1}` : ''}`;
+      const waitingOn = task.state === 'background' ? `\n${pendingWorkLines(task.background)}` : '';
+      item.tooltip = `${task.name} — ${stateLabel(task.state)}${waitingOn}\n${task.data.cwd}${index < 9 ? `\nCtrl+Alt+${index + 1}` : ''}`;
       item.command = { command: 'aiTasks.activateTask', title: 'Open Task', arguments: [task.id] };
       item.backgroundColor = task.state === 'waiting' ? new vscode.ThemeColor('statusBarItem.warningBackground') : undefined;
       item.show();
