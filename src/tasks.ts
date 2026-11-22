@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { agentKind, codexCommand, isSessionId } from './agent';
 import { ArtifactsStore } from './artifacts';
 import { BackgroundTerminal, TerminalKind } from './backgroundTerminal';
 import { log } from './log';
@@ -17,7 +18,8 @@ interface TaskData {
   id: string;
   name: string;
   cwd: string;
-  /** Claude Code session id, used to `--resume` after a window reload. */
+  /** Pinned when the task is created. Older records predate agent selection. */
+  agentCommand?: string;
   sessionId?: string;
   /** File tabs of the task while it is in the background. */
   editors: SavedEditor[];
@@ -108,7 +110,8 @@ export class TaskManager implements vscode.Disposable {
     if (name === undefined) {
       return;
     }
-    const task = new Task({ id: crypto.randomUUID().slice(0, 8), name: name.trim() || defaultName, cwd, editors: [] });
+    const agentCommand = defaultAgentCommand();
+    const task = new Task({ id: crypto.randomUUID().slice(0, 8), name: name.trim() || defaultName, cwd, agentCommand, editors: [] });
     this.tasks.push(task);
     this.save();
     await this.activate(task.id);
@@ -270,17 +273,19 @@ export class TaskManager implements vscode.Disposable {
   killTerminal(taskId: string, terminalId: string): void {
     this.get(taskId)
       ?.terminals.find((t) => t.id === terminalId)
-      ?.dispose();
+      ?.kill(); // onExit removes it from the task and disposes its view
   }
 
   private startAgent(task: Task): boolean {
-    const command = vscode.workspace.getConfiguration('aiTasks').get<string>('agentCommand', 'claude').trim();
+    const command = task.data.agentCommand ?? defaultAgentCommand();
     let initial: string | undefined;
     if (command) {
       initial = command;
-      if (/^claude(\.exe)?(\s|$)/i.test(command)) {
+      if (agentKind(command) === 'codex') {
+        initial = codexCommand(command, task.data.sessionId);
+      } else if (agentKind(command) === 'claude') {
         initial += ` --settings "${this.status.claudeSettingsPath.replace(/\\/g, '/')}"`;
-        if (task.data.sessionId && claudeTranscriptExists(task.data.sessionId)) {
+        if (isSessionId(task.data.sessionId) && claudeTranscriptExists(task.data.sessionId)) {
           initial += ` --resume ${task.data.sessionId}`;
         }
       }
@@ -310,6 +315,7 @@ export class TaskManager implements vscode.Disposable {
                 AI_TASKS_TASK: task.id,
                 AI_TASKS_STATUS_FILE: this.status.statusFileFor(task.id),
                 AI_TASKS_ARTIFACTS_FILE: this.artifacts.ensure(task.id, task.name),
+                ...(agentKind(task.data.agentCommand ?? '') === 'codex' ? this.status.codexEnvironment() : {}),
               }
             : { AI_TASKS_TASK: task.id },
         initialCommand,
@@ -458,13 +464,20 @@ export class TaskManager implements vscode.Disposable {
     if (!saved) {
       return;
     }
+    const needsMigration = saved.tasks.some(data => data.agentCommand === undefined);
     this.tasks = saved.tasks.map((data) => {
+      if (data.agentCommand === undefined) {
+        const configured = defaultAgentCommand();
+        // Only Claude tasks produced session ids before Codex integration.
+        data.agentCommand = data.sessionId && agentKind(configured) !== 'claude' ? 'claude' : configured;
+      }
       const task = new Task(data);
       task.state = 'stopped';
       return task;
     });
     // VS Code restores the active task's file tabs itself; its terminals start on first activation.
     this.activeId = saved.activeId;
+    if (needsMigration) this.save();
   }
 
   private save(): void {
@@ -511,6 +524,24 @@ export class TaskManager implements vscode.Disposable {
     for (const d of this.disposables) {
       d.dispose();
     }
+  }
+}
+
+function defaultAgentCommand(): string {
+  return vscode.workspace.getConfiguration('aiTasks').get<string>('agentCommand', 'claude').trim();
+}
+
+export async function selectDefaultAgent(): Promise<void> {
+  const config = vscode.workspace.getConfiguration('aiTasks');
+  const current = defaultAgentCommand();
+  const choices = [{ label: 'Codex', command: 'codex' }, { label: 'Claude Code', command: 'claude' }];
+  const pick = await vscode.window.showQuickPick(choices.map(item => ({
+    ...item, description: agentKind(current) === item.command ? 'Current default' : undefined,
+  })), { title: 'Default agent for new tasks' });
+  if (pick && agentKind(current) !== pick.command) {
+    const target = config.inspect('agentCommand')?.workspaceValue !== undefined
+      ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+    await config.update('agentCommand', pick.command, target);
   }
 }
 

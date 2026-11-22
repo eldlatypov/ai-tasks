@@ -1,7 +1,5 @@
 #!/usr/bin/env node
-// Claude Code hook: records the agent state of a task in the AI Tasks VS Code extension.
-// Wired up only for terminals started by the AI Tasks extension (via `claude --settings <file>`),
-// which pass AI_TASKS_STATUS_FILE in the environment. Anywhere else it is a no-op.
+// Lifecycle hook for Claude Code and Codex terminals started by AI Tasks.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -30,7 +28,8 @@ function finish() {
     // keep defaults
   }
 
-  let state = requested;
+  let state = requested === 'codex' ? codexState(payload) : requested;
+  if (!state) return;
   if (requested === 'notify') {
     // permission_prompt / elicitation_dialog: the agent is blocked on the user.
     // idle_prompt arrives a while after Stop and adds nothing; auth_success is noise.
@@ -43,7 +42,8 @@ function finish() {
 
   // A turn that ends with a Monitor watch, a background command or agent still running, or a
   // scheduled wakeup, is not finished: the agent resumes when that work reports back.
-  const background = payload.hook_event_name === 'Stop' ? pendingWork(payload) : [];
+  const background = state === 'done'
+    ? [...pendingWork(payload), ...(requested === 'codex' ? activeAgents() : [])] : [];
   if (background.length > 0) {
     state = 'background';
   }
@@ -52,7 +52,7 @@ function finish() {
     state,
     event: payload.hook_event_name,
     sessionId: payload.session_id,
-    message: payload.message,
+    message: payload.message ?? payload.tool_input?.description,
     background: background.length > 0 ? background : undefined,
     ts: Date.now(),
   };
@@ -78,7 +78,47 @@ function finish() {
       // best effort
     }
   }
-  process.exit(0);
+  // A successful Codex hook with no decision leaves approval to Codex.
+}
+
+// Separate markers let parallel child agents start and finish independently.
+// The run id isolates markers left behind by a killed terminal or window reload.
+function agentsDir() {
+  const run = process.env.AI_TASKS_RUN;
+  return file + '.' + (run && /^[a-f0-9-]{36}$/i.test(run) ? run : 'run') + '.agents';
+}
+
+function activeAgents() {
+  try {
+    return fs.readdirSync(agentsDir()).map(name => ({
+      kind: 'agent', label: fs.readFileSync(path.join(agentsDir(), name), 'utf8'),
+    }));
+  } catch { return []; }
+}
+
+function codexState(payload) {
+  switch (payload.hook_event_name) {
+    case 'SessionStart': case 'Interrupt': return 'idle';
+    case 'UserPromptSubmit': case 'PostToolUse': return 'thinking';
+    case 'PermissionRequest': case 'PreToolUse': return 'waiting';
+    case 'Stop': return 'done';
+    case 'SessionEnd':
+      try { fs.rmSync(agentsDir(), { recursive: true, force: true }); } catch { /* best effort */ }
+      return 'stopped';
+    case 'SubagentStart': case 'SubagentStop': {
+      if (typeof payload.agent_id !== 'string' || !payload.agent_id) return;
+      const marker = path.join(agentsDir(), Buffer.from(payload.agent_id).toString('hex'));
+      try {
+        if (payload.hook_event_name === 'SubagentStart') {
+          fs.mkdirSync(agentsDir(), { recursive: true });
+          fs.writeFileSync(marker, short(payload.agent_type || payload.agent_id));
+        } else {
+          fs.rmSync(marker, { force: true });
+          if (JSON.parse(fs.readFileSync(file, 'utf8')).state === 'background') return 'done';
+        }
+      } catch { /* The terminal or task may already be closed. */ }
+    }
+  }
 }
 
 /**
@@ -118,13 +158,25 @@ const GIT_WRITES = new Set([
 function touchedPaths(payload) {
   const paths = [];
   const input = payload.tool_input || {};
+  if (requested === 'codex' && payload.hook_event_name !== 'PostToolUse') return paths;
+  if (payload.tool_name === 'apply_patch') {
+    const patch = typeof input === 'string' ? input : input.command ?? input.patch;
+    if (typeof patch !== 'string') return paths;
+    for (const match of patch.matchAll(/^\*\*\* (?:Add File|Delete File|Update File|Move to): (.+)$/gm)) {
+      const name = match[1].trimEnd();
+      if (path.isAbsolute(name) || typeof payload.cwd === 'string') paths.push(path.resolve(payload.cwd || '.', name));
+    }
+    return [...new Set(paths)];
+  }
   if (WRITE_TOOLS.has(payload.tool_name)) {
     for (const key of ['file_path', 'notebook_path']) {
       if (typeof input[key] === 'string') paths.push(input[key]);
     }
   }
-  if (typeof input.command === 'string') {
-    paths.push(...gitWritePaths(input.command, typeof payload.cwd === 'string' ? payload.cwd : undefined));
+  const command = input.command ?? input.cmd;
+  if (typeof command === 'string') {
+    const cwd = typeof input.workdir === 'string' ? resolveFrom(payload.cwd, input.workdir) : payload.cwd;
+    paths.push(...gitWritePaths(command, typeof cwd === 'string' ? cwd : undefined));
   }
   return [...new Set(paths)];
 }
@@ -176,6 +228,7 @@ function resolveFrom(base, p) {
 
 /** `/d/x` (Git Bash) -> `d:/x`. */
 function fromGitBash(p) {
+  if (process.platform !== 'win32') return p;
   const m = /^\/([A-Za-z])(\/.*)?$/.exec(p);
   return m ? `${m[1]}:${m[2] ?? '/'}` : p;
 }

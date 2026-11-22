@@ -4,7 +4,7 @@ import { ChangedFile, ChangesMode, ChangesView, getGitApi } from './changes';
 import { LayoutMode } from './layoutMode';
 import { RepoTracker } from './repoTracker';
 import { StatusWatcher } from './status';
-import { fileColumn, TaskManager } from './tasks';
+import { fileColumn, selectDefaultAgent, TaskManager } from './tasks';
 import { TasksView } from './tasksView';
 import { TaskStrip } from './taskStrip';
 import { Updater } from './updater';
@@ -40,6 +40,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.window.createTreeView('aiTasks.tasks', { treeDataProvider: tasksView, dragAndDropController: tasksView }),
 
     vscode.commands.registerCommand('aiTasks.newTask', () => tasks.createTask()),
+    vscode.commands.registerCommand('aiTasks.selectDefaultAgent', selectDefaultAgent),
     vscode.commands.registerCommand('aiTasks.switchTask', () => tasks.switchTask()),
     vscode.commands.registerCommand('aiTasks.activateTask', (arg: TaskArg) => {
       const id = taskId(arg);

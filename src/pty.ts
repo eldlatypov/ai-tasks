@@ -68,6 +68,9 @@ export function childEnv(extra: Record<string, string>): { [key: string]: string
     if (value === undefined) {
       continue;
     }
+    if (process.platform === 'win32' && key.toUpperCase() === 'PATH' && extra.PATH !== undefined) {
+      continue;
+    }
     if (/^(VSCODE_|ELECTRON_)/i.test(key) || key === 'NODE_OPTIONS' || CLAUDE_SESSION_MARKERS.test(key)) {
       continue;
     }

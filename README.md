@@ -1,7 +1,7 @@
 # AI Tasks
 
 **Run several CLI agents in VS Code at once, one task each.** A task is an agent such as
-[Claude Code](https://claude.com/claude-code) with its own terminals, its own open files, its own
+[Claude Code](https://claude.com/claude-code) or [Codex CLI](https://developers.openai.com/codex/cli/) with its own terminals, its own open files, its own
 repositories and the links it produced. Switch tasks like browser tabs: the others keep working in
 the background and tell you when they need you.
 
@@ -46,14 +46,17 @@ when it is removed.
 
 ## Getting started
 
-1. Install the agent CLI and check that `claude` runs in a terminal (or set `aiTasks.agentCommand`).
+1. Install Claude Code or Codex CLI and sign in. Open **AI Tasks: Select Default Agent…** in the
+   command palette or the Tasks view menu and choose the CLI for new tasks. The initial choice is Claude Code.
 2. **Ctrl+Alt+N** starts a task: pick its folder, name it, and the agent opens.
 3. **Ctrl+Alt+1…9** switches tasks, **Ctrl+Alt+T** picks one from a list,
    **Ctrl+Alt+`** opens another terminal in the current task.
 
-Agents start with `claude --settings <file>` that adds hooks reporting their state; your own Claude
-Code settings are not changed, and the hooks do nothing outside task terminals. After a window
-reload the tasks are kept and the active one resumes its session.
+Each task remembers its agent and session across window reloads. Claude Code receives a task
+settings file. Codex receives per-session hooks and runs with its own local server. Use a Codex
+CLI with `--no-daemon` and lifecycle hook support. Before sending the first prompt, open `/hooks` in Codex,
+review the **ai-tasks-codex-hook** commands and trust them to enable status, session capture,
+artifact instructions and repository tracking. Artifact edits follow the CLI's normal filesystem permissions.
 
 **Settings:** `aiTasks.agentCommand` (default `claude`), `aiTasks.baseBranch` (the MR delta's base
 when it is not the remote's default branch, e.g. `origin/develop`), `aiTasks.shell` and

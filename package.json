@@ -1,8 +1,8 @@
 {
   "name": "ai-tasks",
   "displayName": "AI Tasks",
-  "description": "Task tabs for CLI AI agents (Claude Code): per-task terminals that keep running in the background, agent status on each task, task links (Jira, MRs, Confluence, stand) and an MR-delta Changes view across repos.",
-  "version": "0.1.3",
+  "description": "Task tabs for Claude Code and Codex with background terminals, agent status, task links and an MR-delta Changes view across repositories.",
+  "version": "0.1.4",
   "publisher": "eldlatypov",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -22,6 +22,7 @@
     "Other"
   ],
   "keywords": [
+    "codex",
     "claude",
     "claude code",
     "ai",
@@ -67,6 +68,11 @@
       }
     ],
     "commands": [
+      {
+        "command": "aiTasks.selectDefaultAgent",
+        "title": "Select Default Agent…",
+        "category": "AI Tasks"
+      },
       {
         "command": "aiTasks.newTask",
         "title": "New Task",
@@ -193,6 +199,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "aiTasks.selectDefaultAgent",
+          "when": "view == aiTasks.tasks",
+          "group": "1_agent"
+        },
         {
           "command": "aiTasks.showExplorer",
           "when": "view == aiTasks.changes",
@@ -359,7 +370,7 @@
           {
             "id": "agent",
             "title": "Install the agent CLI",
-            "description": "Each task starts `claude` (Claude Code) in its first terminal. Install it and check that `claude` runs in a terminal, or set another command.\n[Install Claude Code](https://docs.claude.com/en/docs/claude-code/setup)\n[Agent Command Setting](command:workbench.action.openSettings?%5B%22aiTasks.agentCommand%22%5D)",
+            "description": "Install Claude Code or Codex CLI and check that the selected command runs in a terminal.\n[Select Default Agent](command:aiTasks.selectDefaultAgent)\n[Install Codex CLI](https://developers.openai.com/codex/cli/)\n[Install Claude Code](https://docs.claude.com/en/docs/claude-code/setup)",
             "media": {
               "markdown": "media/walkthrough/agent.md"
             }
@@ -406,12 +417,12 @@
         "aiTasks.agentCommand": {
           "type": "string",
           "default": "claude",
-          "description": "Command that starts the agent in a new task's first terminal. Leave empty to start a plain shell."
+          "description": "Default command for new tasks. Use codex or claude for agent integration, another command for a custom terminal, or an empty string for a plain shell. Each task remembers its command."
         },
         "aiTasks.resumeActiveTaskOnStartup": {
           "type": "boolean",
           "default": true,
-          "description": "When the window opens, restart the active task's agent (resuming its Claude Code session)."
+          "description": "When the window opens, restart the active task and resume its Claude Code or Codex session when available."
         },
         "aiTasks.checkForUpdates": {
           "type": "boolean",
@@ -440,6 +451,7 @@
     }
   },
   "scripts": {
+    "test": "node --test test/codex.test.cjs",
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",

@@ -1,10 +1,10 @@
 # The agent CLI
 
-A new task opens a terminal and runs the agent command in it, `claude` by default
-([Claude Code](https://docs.claude.com/en/docs/claude-code/setup)).
+Install Claude Code or Codex CLI, sign in and run **AI Tasks: Select Default Agent…**.
+New tasks use your selection. Reopening an existing task resumes its original agent session.
 
-It is started with an extra settings file that adds hooks: they report the agent's state
-(working, needs input, finished) to AI Tasks. Your own Claude Code settings are not changed, and
-the hooks do nothing outside task terminals.
+For Codex, review and trust the **ai-tasks-codex-hook** entries under `/hooks` before the
+first prompt. These hooks report progress, identify changed repositories and give
+the agent the location of the task's artifacts file.
 
 Leave `aiTasks.agentCommand` empty to get a plain shell instead.

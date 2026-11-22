@@ -57,7 +57,7 @@ export class TasksView
       item.iconPath = stateIcon(task.state);
       item.description = `${active ? '● ' : ''}${stateLabel(task.state)} · ${path.basename(task.data.cwd)}`;
       const waitingOn = task.state === 'background' ? `\n${pendingWorkLines(task.background)}` : '';
-      item.tooltip = `${task.name}\n${stateLabel(task.state)}${waitingOn}\n${task.data.cwd}`;
+      item.tooltip = `${task.name}\n${task.data.agentCommand || 'Shell'} · ${stateLabel(task.state)}${waitingOn}\n${task.data.cwd}`;
       item.contextValue = 'task';
       item.command = { command: 'aiTasks.activateTask', title: 'Open Task', arguments: [task.id] };
       return item;

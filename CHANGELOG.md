@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.4
+
+- Choose Claude Code or Codex CLI for new tasks with **Select Default Agent…**.
+  Each task keeps its agent and resumes its own session when reopened.
+- Codex hooks report task status, track file edits across repositories and provide the task's
+  artifact instructions. Review the AI Tasks hooks in Codex on first use.
+
 ## 0.1.3
 
 - New task state, waiting for background work: the agent ended its turn but a Monitor watch, a

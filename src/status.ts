@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
@@ -39,6 +40,7 @@ export interface StatusRecord {
 export class StatusWatcher implements vscode.Disposable {
   readonly statusDir: string;
   readonly claudeSettingsPath: string;
+  private readonly extensionPath: string;
 
   private readonly emitter = new vscode.EventEmitter<{ taskId: string; record: StatusRecord }>();
   readonly onStatus = this.emitter.event;
@@ -56,6 +58,7 @@ export class StatusWatcher implements vscode.Disposable {
   private readonly pending = new Map<string, NodeJS.Timeout>();
 
   constructor(context: vscode.ExtensionContext) {
+    this.extensionPath = context.extensionPath;
     const storage = context.globalStorageUri.fsPath;
     this.statusDir = path.join(storage, 'status');
     this.claudeSettingsPath = path.join(storage, 'claude-hooks.json');
@@ -66,6 +69,26 @@ export class StatusWatcher implements vscode.Disposable {
 
   statusFileFor(taskId: string): string {
     return path.join(this.statusDir, `${taskId}.json`);
+  }
+
+  codexEnvironment(): Record<string, string> {
+    const dir = path.join(path.dirname(this.statusDir), 'hook-bin');
+    const win = process.platform === 'win32';
+    const launcher = path.join(dir, win ? 'ai-tasks-codex-hook.cmd' : 'ai-tasks-codex-hook');
+    const content = win
+      ? '@echo off\r\nsetlocal\r\nset ELECTRON_RUN_AS_NODE=1\r\n"%AI_TASKS_NODE%" "%AI_TASKS_HOOK_JS%" codex\r\n'
+      : '#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec "$AI_TASKS_NODE" "$AI_TASKS_HOOK_JS" codex\n';
+    fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(launcher) || fs.readFileSync(launcher, 'utf8') !== content) {
+      fs.writeFileSync(launcher, content, { mode: 0o755 });
+    }
+    return {
+      PATH: dir + path.delimiter + (process.env.PATH ?? ''),
+      AI_TASKS_NODE: process.execPath,
+      AI_TASKS_HOOK_JS: path.join(this.extensionPath, 'hooks', 'hook.js'),
+      AI_TASKS_RUN: randomUUID(),
+      ...(win ? { NoDefaultCurrentDirectoryInExePath: '1' } : {}),
+    };
   }
 
   clear(taskId: string): void {
