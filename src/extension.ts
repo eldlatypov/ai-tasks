@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ArtifactsStore } from './artifacts';
 import { ChangedFile, ChangesMode, ChangesView, getGitApi } from './changes';
 import { LayoutMode } from './layoutMode';
+import { log } from './log';
 import { RepoTracker } from './repoTracker';
 import { StatusWatcher } from './status';
 import { fileColumn, selectDefaultAgent, TaskManager } from './tasks';
@@ -115,7 +116,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           defaultUri: vscode.workspace.workspaceFolders?.[0]?.uri,
         });
         if (picked?.[0] && !repos.addPath(picked[0].fsPath, tasks.active?.id)) {
-          vscode.window.showWarningMessage(`${picked[0].fsPath} is not inside a git repository.`);
+          vscode.window.setStatusBarMessage(`${picked[0].fsPath} is not inside a Git repository.`, 6000);
         }
       }),
       vscode.commands.registerCommand('aiTasks.refreshChanges', () => changes.refresh()),
@@ -128,7 +129,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       ),
     );
   } else {
-    vscode.window.showWarningMessage('AI Tasks: the built-in Git extension is disabled, the Changes view is unavailable.');
+    log.warn('The Changes view requires the built-in Git extension.');
   }
 }
 

@@ -7,6 +7,20 @@ const test = require('node:test');
 const { buildSync } = require('esbuild');
 const Module = require('node:module');
 
+function loadTasks(vscode, pty) {
+  const external = pty ? ['vscode', './pty'] : ['vscode'];
+  const compiled = buildSync({ entryPoints: ['src/tasks.ts'], platform: 'node', format: 'cjs',
+    bundle: true, write: false, external }).outputFiles[0].text;
+  const m = new Module('task-test', module);
+  m.require = id => {
+    if (id === 'vscode') return vscode;
+    if (id === './pty' && pty) return pty;
+    return require(id);
+  };
+  m._compile(compiled, 'task-test.cjs');
+  return m.exports;
+}
+
 test('changing the default starts new Codex tasks and reopens each saved task with its own CLI', async () => {
   const cwd = process.cwd();
   const sessionId = '01234567-89ab-cdef-0123-456789abcdef';
@@ -32,12 +46,7 @@ test('changing the default starts new Codex tasks and reopens each saved task wi
       showQuickPick: async choices => choices.find(choice => choice.command === 'codex'),
     },
   };
-  const compiled = buildSync({ entryPoints: ['src/tasks.ts'], platform: 'node', format: 'cjs',
-    bundle: true, write: false, external: ['vscode'] }).outputFiles[0].text;
-  const m = new Module('task-test', module);
-  m.require = id => id === 'vscode' ? vscode : require(id);
-  m._compile(compiled, 'task-test.cjs');
-  const { TaskManager, selectDefaultAgent } = m.exports;
+  const { TaskManager, selectDefaultAgent } = loadTasks(vscode);
   const context = { workspaceState: { get: () => structuredClone(saved), update: (_, value) => { saved = structuredClone(value); } } };
   const status = { onStatus() {}, claudeSettingsPath: 'claude-hooks.json' };
   const manager = new TaskManager(context, status, {});
@@ -62,6 +71,104 @@ test('changing the default starts new Codex tasks and reopens each saved task wi
   command = 'my-custom-cli --flag';
   await manager.createTask();
   assert.equal(launches[4], command);
+});
+
+test('a question in a background task updates its status without a VS Code notification', () => {
+  const notifications = [];
+  const vscode = {
+    ViewColumn: { One: 1 },
+    EventEmitter: class {
+      event = listener => { this.listener = listener; };
+      fire() { this.listener?.(); }
+    },
+    window: {
+      createOutputChannel: () => ({}),
+      tabGroups: { onDidChangeTabs() {} },
+      showInformationMessage: async message => { notifications.push(message); },
+    },
+  };
+  const { TaskManager } = loadTasks(vscode);
+  const active = { id: 'active', name: 'Active', cwd: process.cwd(), agentCommand: 'codex', editors: [] };
+  const background = { ...active, id: 'background', name: 'Background' };
+  const context = { workspaceState: { get: () => ({ tasks: [active, background], activeId: active.id }) } };
+  let reportStatus;
+  const status = { onStatus: listener => { reportStatus = listener; } };
+  const manager = new TaskManager(context, status, {});
+  const states = [];
+  manager.onDidChange(() => states.push(manager.get(background.id).state));
+
+  reportStatus({ taskId: background.id, record: { state: 'waiting', message: 'Choose an option.' } });
+
+  assert.deepEqual(states, ['waiting']);
+  assert.equal(manager.active.id, active.id);
+  assert.deepEqual(notifications, []);
+});
+
+test('the Codex terminal distinguishes automatic review from prompts that require a response', async () => {
+  let terminalOutput;
+  const pty = {
+    loadNodePty: () => ({
+      spawn: () => ({
+        onData: listener => { terminalOutput = listener; },
+        onExit() {},
+        write() {},
+      }),
+    }),
+    childEnv: env => env,
+  };
+  const vscode = {
+    ViewColumn: { One: 1 },
+    EventEmitter: class {
+      event = listener => { this.listener = listener; };
+      fire() { this.listener?.(); }
+    },
+    workspace: { getConfiguration: () => ({ get: (_, fallback) => fallback }) },
+    window: {
+      createOutputChannel: () => ({ error: (_, error) => { throw error; } }),
+      tabGroups: { onDidChangeTabs() {} },
+    },
+  };
+  const { TaskManager } = loadTasks(vscode, pty);
+  const saved = { id: 'codex', name: 'Codex', cwd: process.cwd(), agentCommand: 'codex', editors: [] };
+  const context = { workspaceState: { get: () => ({ tasks: [saved] }) } };
+  let reportStatus;
+  const status = {
+    onStatus: listener => { reportStatus = listener; },
+    statusFileFor: () => 'codex.json',
+    codexEnvironment: () => ({}),
+  };
+  const manager = new TaskManager(context, status, { ensure: () => 'artifacts.md' });
+  const task = manager.get(saved.id);
+  assert.equal(manager.startAgent(task), true);
+  const permissionRequest = { taskId: task.id, record: { state: 'waiting', event: 'PermissionRequest' } };
+  const renderedStates = [];
+  manager.onDidChange(() => renderedStates.push(task.state));
+
+  async function reportTerminalStatus(...chunks) {
+    for (const chunk of chunks) terminalOutput(chunk);
+    await new Promise(resolve => task.agentTerminal.screen.write('', resolve));
+  }
+
+  reportStatus(permissionRequest);
+  assert.equal(task.state, 'waiting');
+  await reportTerminalStatus('\x1b]7501;state=working:app=codex\x1b\\');
+  assert.equal(task.state, 'thinking');
+  assert.equal(renderedStates.at(-1), 'thinking');
+
+  reportStatus(permissionRequest);
+  assert.equal(task.state, 'thinking');
+  await reportTerminalStatus('\x1b]7501;state=blo', 'cked:app=codex:kind=permission\x1b\\');
+  assert.equal(task.state, 'waiting');
+  assert.equal(renderedStates.at(-1), 'waiting');
+  reportStatus({ taskId: task.id, record: { state: 'thinking', event: 'PostToolUse' } });
+  assert.equal(task.state, 'waiting');
+
+  await reportTerminalStatus('\x1b]7501;state=working:app=codex\x1b\\');
+  assert.equal(task.state, 'thinking');
+  await reportTerminalStatus('\x1b]7501;state=blocked:app=codex:kind=question\x1b\\');
+  assert.equal(task.state, 'waiting');
+  await reportTerminalStatus('\x1b]7501;state=clear\x1b\\');
+  assert.equal(task.state, 'thinking');
 });
 
 test('Codex hooks report the task session, requests, artifacts and written repositories', (t) => {

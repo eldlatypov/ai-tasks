@@ -18,7 +18,7 @@ export const AGENT_SETTINGS: Readonly<Record<string, unknown>> = {
 
 const MODE_KEY = 'aiTasks.mode';
 const SNAPSHOT_KEY = 'aiTasks.classicSnapshot';
-const OFFERED_KEY = 'aiTasks.layoutOffered';
+const LAYOUT_ONBOARDING_KEY = 'aiTasks.layoutOffered';
 const AUX_CLOSED_KEY = 'aiTasks.auxiliaryBarClosed';
 
 export class LayoutMode implements vscode.Disposable {
@@ -39,32 +39,9 @@ export class LayoutMode implements vscode.Disposable {
         await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
         await this.context.workspaceState.update(AUX_CLOSED_KEY, true);
       }
-    } else if (!this.context.globalState.get<boolean>(OFFERED_KEY)) {
-      await this.context.globalState.update(OFFERED_KEY, true);
+    } else if (!this.context.globalState.get<boolean>(LAYOUT_ONBOARDING_KEY)) {
+      await this.context.globalState.update(LAYOUT_ONBOARDING_KEY, true);
       await vscode.commands.executeCommand('workbench.view.extension.aiTasks');
-      void this.offer();
-    }
-  }
-
-  /** Asked once, on the first start: the settings are the user's, so nothing changes without a yes. */
-  private async offer(): Promise<void> {
-    const apply = 'Apply';
-    const details = 'What Changes?';
-    const choice = await vscode.window.showInformationMessage(
-      'AI Tasks: use the Agent layout? Terminals open as editor tabs, empty editor groups close, the chat side bar stays hidden. ' +
-        'You can switch back to your layout at any time from the status bar.',
-      apply,
-      details,
-      'Not Now',
-    );
-    if (choice === apply) {
-      await this.useAgent();
-    } else if (choice === details) {
-      await vscode.commands.executeCommand(
-        'workbench.action.openWalkthrough',
-        { category: `${this.context.extension.id}#aiTasks.start`, step: 'layout' },
-        false,
-      );
     }
   }
 
