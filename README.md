@@ -12,8 +12,7 @@ the background and tell you when they need you.
 The Tasks view and the status bar show what each agent is doing: working, **needs your input**
 (a permission prompt or a question), **waiting for background work** (its turn is over but a
 Monitor watch, a background command or agent, or a scheduled wakeup will bring it back; the tooltip
-lists them), finished, idle. A task that needs you in the background lights up and raises a
-notification, so you can leave agents running and come back when it matters.
+lists them), finished, idle. A bell marks tasks that need your attention. Open the task to answer in its terminal.
 
 Switching tasks hides the other task's terminals and files and brings back this one's, exactly as
 you left them. The processes keep running; showing a terminal again replays its screen.
@@ -36,11 +35,10 @@ every repository, Confluence pages, the feature stand. The agent adds them as it
 
 ## Your VS Code stays yours
 
-AI Tasks works in your normal profile and changes no settings by itself. The optional **Agent
-layout** (terminals as editor tabs, empty editor groups close, the chat side bar stays hidden) is
-offered once and lives in **Get Started with AI Tasks**; one click in the status bar puts your own
-settings back. Restore them before uninstalling: VS Code gives an extension no way to undo settings
-when it is removed.
+AI Tasks works in your normal profile and changes settings only when you choose the **Agent layout**.
+The layout opens terminals as editor tabs, closes empty editor groups and hides the chat sidebar.
+Turn it on from **Get Started with AI Tasks** or the status bar. Switch back from the status bar
+to restore your settings before uninstalling.
 
 [![Get Started with AI Tasks](media/screenshots/get-started.png)](https://github.com/eldlatypov/ai-tasks/raw/HEAD/media/screenshots/get-started.png)
 
@@ -92,5 +90,4 @@ access token comes from `OVSX_PAT`, in the environment or in a git-ignored `.env
 - `src/changes.ts`, `src/branchDelta.ts`, `src/repoTracker.ts`: the Changes view over the active
   task's repositories, uncommitted or as the MR delta.
 - `src/taskStrip.ts`: tasks and the layout switch in the status bar.
-- `src/layoutMode.ts`: the optional Agent layout: offers it once, applies a few settings and
-  restores the previous values.
+- `src/layoutMode.ts` applies the optional Agent layout and restores the previous settings.

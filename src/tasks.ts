@@ -31,13 +31,25 @@ interface SavedState {
 }
 
 export class Task {
-  state: AgentState = 'idle';
+  private reportedState: AgentState = 'idle';
   /** What the agent waits on while in the background state. */
   background: PendingWork[] = [];
   readonly terminals: BackgroundTerminal[] = [];
   private shellCounter = 1;
 
   constructor(readonly data: TaskData) {}
+
+  get state(): AgentState {
+    const needsInput = this.agentTerminal?.codexNeedsInput;
+    if (needsInput) {
+      return 'waiting';
+    }
+    return needsInput === false && this.reportedState === 'waiting' ? 'thinking' : this.reportedState;
+  }
+
+  set state(state: AgentState) {
+    this.reportedState = state;
+  }
 
   get id(): string {
     return this.data.id;
@@ -296,9 +308,10 @@ export class TaskManager implements vscode.Disposable {
 
   private spawn(task: Task, kind: TerminalKind, name: string, initialCommand?: string): BackgroundTerminal | undefined {
     const config = vscode.workspace.getConfiguration('aiTasks');
+    const isCodex = kind === 'agent' && agentKind(task.data.agentCommand ?? '') === 'codex';
     let cwd = task.data.cwd;
     if (!fs.existsSync(cwd)) {
-      vscode.window.showWarningMessage(`Folder ${cwd} no longer exists, starting in the workspace root.`);
+      log.warn(`Folder ${cwd} no longer exists. Starting the terminal in the workspace root.`);
       cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
     }
     let term: BackgroundTerminal;
@@ -315,14 +328,15 @@ export class TaskManager implements vscode.Disposable {
                 AI_TASKS_TASK: task.id,
                 AI_TASKS_STATUS_FILE: this.status.statusFileFor(task.id),
                 AI_TASKS_ARTIFACTS_FILE: this.artifacts.ensure(task.id, task.name),
-                ...(agentKind(task.data.agentCommand ?? '') === 'codex' ? this.status.codexEnvironment() : {}),
+                ...(isCodex ? this.status.codexEnvironment() : {}),
               }
             : { AI_TASKS_TASK: task.id },
         initialCommand,
+        onDidChangeCodexStatus: isCodex ? () => this.changeEmitter.fire() : undefined,
       });
     } catch (err) {
       log.error('cannot start terminal', err);
-      vscode.window.showErrorMessage(`AI Tasks: cannot start terminal: ${String(err)}`);
+      vscode.window.setStatusBarMessage('AI Tasks could not start the terminal. See the AI Tasks output.', 6000);
       return undefined;
     }
     task.terminals.push(term);
@@ -358,14 +372,8 @@ export class TaskManager implements vscode.Disposable {
       task.data.sessionId = record.sessionId;
       this.save();
     }
-    const previous = task.state;
     task.state = record.state;
     task.background = record.background ?? [];
-    if (record.state === 'waiting' && previous !== 'waiting' && task.id !== this.activeId) {
-      void vscode.window
-        .showInformationMessage(`"${task.name}" needs your input${record.message ? `: ${record.message}` : ''}`, 'Open Task')
-        .then((answer) => answer && this.activate(task.id));
-    }
     this.changeEmitter.fire();
   }
 

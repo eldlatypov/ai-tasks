@@ -2,7 +2,7 @@
   "name": "ai-tasks",
   "displayName": "AI Tasks",
   "description": "Task tabs for Claude Code and Codex with background terminals, agent status, task links and an MR-delta Changes view across repositories.",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "eldlatypov",
   "license": "MIT",
   "icon": "media/icon.png",

@@ -13,6 +13,7 @@ export interface BackgroundTerminalOptions {
   shell: string;
   shellArgs: string[];
   env: Record<string, string>;
+  onDidChangeCodexStatus?: () => void;
   /** Typed into the shell right after it starts. */
   initialCommand?: string;
 }
@@ -31,6 +32,7 @@ export class BackgroundTerminal implements vscode.Disposable {
   readonly id: string;
   readonly kind: TerminalKind;
   name: string;
+  codexNeedsInput?: boolean;
 
   private readonly pty: IPty;
   private readonly screen: HeadlessTerminal;
@@ -68,6 +70,21 @@ export class BackgroundTerminal implements vscode.Disposable {
       allowProposedApi: true,
     });
     this.screen.loadAddon(this.serializer);
+    const onDidChangeCodexStatus = options.onDidChangeCodexStatus;
+    if (onDidChangeCodexStatus) {
+      this.screen.parser.registerOscHandler(7501, (data) => {
+        const state = /^state=(idle|working|blocked|done|error):app=codex(?::|$)/.exec(data)?.[1];
+        if (!state && (data !== 'state=clear' || this.codexNeedsInput === undefined)) {
+          return false;
+        }
+        const needsInput = state === 'blocked';
+        if (this.codexNeedsInput !== needsInput) {
+          this.codexNeedsInput = needsInput;
+          onDidChangeCodexStatus();
+        }
+        return true;
+      });
+    }
 
     this.pty = loadNodePty().spawn(options.shell, options.shellArgs, {
       name: 'xterm-256color',

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5
+
+- Keep VS Code notifications for extension updates. Agent prompts stay in the task terminal.
+- Use the Codex terminal's status to distinguish auto-review from prompts that need input.
+
 ## 0.1.4
 
 - Choose Claude Code or Codex CLI for new tasks with **Select Default Agent…**.
