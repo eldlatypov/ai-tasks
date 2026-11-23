@@ -37,6 +37,7 @@ export class BackgroundTerminal implements vscode.Disposable {
   private readonly pty: IPty;
   private readonly screen: HeadlessTerminal;
   private readonly serializer = new SerializeAddon();
+  private mouseReportEncoding: 1006 | 1016 | undefined;
   private cols = 120;
   private rows = 30;
 
@@ -70,6 +71,24 @@ export class BackgroundTerminal implements vscode.Disposable {
       allowProposedApi: true,
     });
     this.screen.loadAddon(this.serializer);
+    this.screen.parser.registerCsiHandler({ prefix: '?', final: 'h' }, (params) => {
+      for (const mode of params) {
+        if (mode === 1006 || mode === 1016) {
+          this.mouseReportEncoding = mode;
+        }
+      }
+      return false;
+    });
+    this.screen.parser.registerCsiHandler({ prefix: '?', final: 'l' }, (params) => {
+      if (params.includes(1006) || params.includes(1016)) {
+        this.mouseReportEncoding = undefined;
+      }
+      return false;
+    });
+    this.screen.parser.registerEscHandler({ final: 'c' }, () => {
+      this.mouseReportEncoding = undefined;
+      return false;
+    });
     const onDidChangeCodexStatus = options.onDidChangeCodexStatus;
     if (onDidChangeCodexStatus) {
       this.screen.parser.registerOscHandler(7501, (data) => {
@@ -223,7 +242,11 @@ export class BackgroundTerminal implements vscode.Disposable {
       if (write !== this.viewWrite) {
         return;
       }
-      write.fire(this.serializer.serialize({ scrollback: 2000 }));
+      let snapshot = this.serializer.serialize({ scrollback: 2000 });
+      if (this.mouseReportEncoding) {
+        snapshot += `\x1b[?${this.mouseReportEncoding}h`;
+      }
+      write.fire(snapshot);
       for (const chunk of this.pendingOutput) {
         write.fire(chunk);
       }

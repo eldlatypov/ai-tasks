@@ -7,9 +7,9 @@ const test = require('node:test');
 const { buildSync } = require('esbuild');
 const Module = require('node:module');
 
-function loadTasks(vscode, pty) {
+function loadModule(vscode, pty, entryPoint = 'src/tasks.ts') {
   const external = pty ? ['vscode', './pty'] : ['vscode'];
-  const compiled = buildSync({ entryPoints: ['src/tasks.ts'], platform: 'node', format: 'cjs',
+  const compiled = buildSync({ entryPoints: [entryPoint], platform: 'node', format: 'cjs',
     bundle: true, write: false, external }).outputFiles[0].text;
   const m = new Module('task-test', module);
   m.require = id => {
@@ -46,7 +46,7 @@ test('changing the default starts new Codex tasks and reopens each saved task wi
       showQuickPick: async choices => choices.find(choice => choice.command === 'codex'),
     },
   };
-  const { TaskManager, selectDefaultAgent } = loadTasks(vscode);
+  const { TaskManager, selectDefaultAgent } = loadModule(vscode);
   const context = { workspaceState: { get: () => structuredClone(saved), update: (_, value) => { saved = structuredClone(value); } } };
   const status = { onStatus() {}, claudeSettingsPath: 'claude-hooks.json' };
   const manager = new TaskManager(context, status, {});
@@ -87,7 +87,7 @@ test('a question in a background task updates its status without a VS Code notif
       showInformationMessage: async message => { notifications.push(message); },
     },
   };
-  const { TaskManager } = loadTasks(vscode);
+  const { TaskManager } = loadModule(vscode);
   const active = { id: 'active', name: 'Active', cwd: process.cwd(), agentCommand: 'codex', editors: [] };
   const background = { ...active, id: 'background', name: 'Background' };
   const context = { workspaceState: { get: () => ({ tasks: [active, background], activeId: active.id }) } };
@@ -128,7 +128,7 @@ test('the Codex terminal distinguishes automatic review from prompts that requir
       tabGroups: { onDidChangeTabs() {} },
     },
   };
-  const { TaskManager } = loadTasks(vscode, pty);
+  const { TaskManager } = loadModule(vscode, pty);
   const saved = { id: 'codex', name: 'Codex', cwd: process.cwd(), agentCommand: 'codex', editors: [] };
   const context = { workspaceState: { get: () => ({ tasks: [saved] }) } };
   let reportStatus;
@@ -169,6 +169,65 @@ test('the Codex terminal distinguishes automatic review from prompts that requir
   assert.equal(task.state, 'waiting');
   await reportTerminalStatus('\x1b]7501;state=clear\x1b\\');
   assert.equal(task.state, 'thinking');
+});
+
+test('a reopened terminal preserves the mouse reporting format requested by its program', async (t) => {
+  let output;
+  let view;
+  const pty = {
+    childEnv: env => env,
+    loadNodePty: () => ({
+      spawn: () => ({
+        onData: listener => { output = listener; },
+        onExit() {},
+        kill() {},
+      }),
+    }),
+  };
+  const vscode = {
+    EventEmitter: class {
+      event = listener => { this.listener = listener; };
+      fire(data) { this.listener?.(data); }
+      dispose() { this.listener = undefined; }
+    },
+    ThemeIcon: class {},
+    window: {
+      createTerminal({ pty }) {
+        view = pty;
+        return { dispose: () => pty.close() };
+      },
+    },
+  };
+  const { BackgroundTerminal } = loadModule(vscode, pty, 'src/backgroundTerminal.ts');
+  const terminal = new BackgroundTerminal({
+    id: 'agent', name: 'Agent', kind: 'agent', cwd: process.cwd(), shell: '', shellArgs: [], env: {},
+  });
+  t.after(() => terminal.dispose());
+
+  function reopen() {
+    terminal.hide();
+    terminal.show(1, false);
+    return new Promise(resolve => {
+      view.onDidWrite(resolve);
+      view.open();
+    });
+  }
+
+  await reopen();
+  output('\x1b[?1049h\x1b[?1003;10');
+  output('06h');
+  const cellMouseSnapshot = await reopen();
+  assert.ok(cellMouseSnapshot.includes('\x1b[?1003h'));
+  assert.ok(cellMouseSnapshot.includes('\x1b[?1006h'));
+
+  output('\x1b[?1006l');
+  assert.ok(!(await reopen()).includes('\x1b[?1006h'));
+
+  output('\x1b[?1003;1016h');
+  assert.ok((await reopen()).includes('\x1b[?1016h'));
+
+  output('\x1bc');
+  assert.ok(!(await reopen()).includes('\x1b[?1016h'));
 });
 
 test('Codex hooks report the task session, requests, artifacts and written repositories', (t) => {
