@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.6
+
+- Keep mouse input working in terminal apps when you reopen a task terminal.
+
 ## 0.1.5
 
 - Keep VS Code notifications for extension updates. Agent prompts stay in the task terminal.
