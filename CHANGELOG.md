@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.7
+
+- Choose OpenCode as the agent for new tasks and see when a session needs input.
+- Resume OpenCode 2 sessions when reopening a task, or link an existing session with **Use Existing OpenCode Session…**.
+
 ## 0.1.6
 
 - Keep mouse input working in terminal apps when you reopen a task terminal.
