@@ -1,32 +1,38 @@
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
+const { createHash } = require('node:crypto');
 const fs = require('node:fs');
+const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { buildSync } = require('esbuild');
 const Module = require('node:module');
 
-function loadModule(vscode, pty, entryPoint = 'src/tasks.ts') {
+function loadModule(vscode, pty, entryPoint = 'src/tasks.ts', openCodeService) {
   const external = pty ? ['vscode', './pty'] : ['vscode'];
+  if (openCodeService) external.push('@opencode/client/service');
   const compiled = buildSync({ entryPoints: [entryPoint], platform: 'node', format: 'cjs',
     bundle: true, write: false, external }).outputFiles[0].text;
   const m = new Module('task-test', module);
   m.require = id => {
     if (id === 'vscode') return vscode;
     if (id === './pty' && pty) return pty;
+    if (id === '@opencode/client/service' && openCodeService) return { Service: openCodeService };
     return require(id);
   };
   m._compile(compiled, 'task-test.cjs');
   return m.exports;
 }
 
-test('changing the default starts new Codex tasks and reopens each saved task with its own CLI', async () => {
+test('changing the default starts new tasks and reopens each saved task with its own CLI', async () => {
   const cwd = process.cwd();
   const sessionId = '01234567-89ab-cdef-0123-456789abcdef';
   const legacy = { id: 'older', name: 'Older', cwd, editors: [], sessionId };
   let saved = { tasks: [legacy] };
   let command = 'claude';
+  let selectedAgent = 'codex';
+  let pickerItems;
   const config = {
     get: () => command, inspect: () => ({}),
     update: async (key, value, target) => {
@@ -42,8 +48,11 @@ test('changing the default starts new Codex tasks and reopens each saved task wi
     window: {
       createOutputChannel: () => ({}),
       tabGroups: { onDidChangeTabs() {} },
-      showInputBox: async () => 'New Codex task',
-      showQuickPick: async choices => choices.find(choice => choice.command === 'codex'),
+      showInputBox: async () => 'New task',
+      showQuickPick: async choices => {
+        pickerItems = choices;
+        return choices.find(choice => choice.command === selectedAgent);
+      },
     },
   };
   const { TaskManager, selectDefaultAgent } = loadModule(vscode);
@@ -57,20 +66,89 @@ test('changing the default starts new Codex tasks and reopens each saved task wi
   manager.pickFolder = async () => cwd;
   manager.activate = async id => manager.startAgent(manager.get(id));
   await manager.createTask();
-  assert.match(launches[0], /^codex --no-daemon /);
+  assert.match(launches.shift(), /^codex --no-daemon /);
   manager.applyStatus(manager.all[1].id, { state: 'thinking', sessionId });
+  selectedAgent = 'opencode';
+  await selectDefaultAgent();
+  assert.equal(command, 'opencode');
+  await manager.createTask();
+  const openCodeLaunch = launches.shift();
+  assert.match(openCodeLaunch, /^opencode --session ses_[0-9a-f]{32}$/);
+
+  command = 'opencode.cmd --standalone';
+  await selectDefaultAgent();
+  assert.equal(pickerItems.find(choice => choice.label === 'OpenCode')?.description, 'Current default');
+  assert.equal(command, 'opencode.cmd --standalone');
+
   command = '';
   const restored = new TaskManager(context, status, {});
   restored.spawn = manager.spawn;
-  restored.startAgent(restored.all[1]);
-  assert.ok(launches[1].endsWith(' resume ' + sessionId));
-  restored.startAgent(restored.all[0]);
-  assert.match(launches[2], /^claude --settings /);
+  await restored.startAgent(restored.all[1]);
+  assert.ok(launches.shift().endsWith(' resume ' + sessionId));
+  await restored.startAgent(restored.all[0]);
+  assert.match(launches.shift(), /^claude --settings /);
+  await restored.startAgent(restored.all[2]);
+  assert.equal(launches.shift(), openCodeLaunch);
   await manager.createTask();
-  assert.equal(launches[3], undefined);
+  assert.deepEqual(launches.splice(0), [undefined]);
   command = 'my-custom-cli --flag';
   await manager.createTask();
-  assert.equal(launches[4], command);
+  assert.deepEqual(launches, [command]);
+});
+
+test('existing OpenCode tasks use separate sessions and can adopt a previous session', async () => {
+  const cwd = process.cwd();
+  const first = { id: 'first', name: 'First', cwd, agentCommand: 'opencode', editors: [] };
+  const second = { ...first, id: 'second', name: 'Second', agentCommand: 'opencode.cmd --standalone' };
+  const explicitCommand = 'opencode --session ses_explicit';
+  const explicit = { ...first, id: 'explicit', name: 'Explicit', agentCommand: explicitCommand };
+  let saved = { tasks: [first, second, explicit], activeId: first.id };
+  let enteredId = 'ses_previous';
+  const warnings = [];
+  const vscode = {
+    ViewColumn: { One: 1 },
+    EventEmitter: class { event() {} },
+    window: {
+      createOutputChannel: () => ({}),
+      tabGroups: { onDidChangeTabs() {} },
+      showInformationMessage() {},
+      showWarningMessage: message => warnings.push(message),
+      showInputBox: async ({ validateInput }) => {
+        assert.ok(validateInput('ses_test; invalid'));
+        assert.equal(validateInput(enteredId), undefined);
+        return enteredId;
+      },
+    },
+  };
+  const { TaskManager } = loadModule(vscode);
+  const context = {
+    workspaceState: {
+      get: () => structuredClone(saved),
+      update: async (_, value) => { saved = structuredClone(value); },
+    },
+  };
+  const manager = new TaskManager(context, { onStatus() {} }, {});
+  const launches = [];
+  manager.spawn = (_, kind, name, initial) => { launches.push(initial); return {}; };
+
+  await manager.startAgent(manager.get(first.id));
+  await manager.startAgent(manager.get(second.id));
+  assert.notEqual(saved.tasks[0].openCodeSessionId, saved.tasks[1].openCodeSessionId);
+  assert.equal(launches[0], `opencode --session ${saved.tasks[0].openCodeSessionId}`);
+  assert.equal(launches[1], `opencode.cmd --standalone --session ${saved.tasks[1].openCodeSessionId}`);
+
+  await manager.useExistingOpenCodeSession();
+  assert.equal(saved.tasks[0].openCodeSessionId, enteredId);
+  const restored = new TaskManager(context, { onStatus() {} }, {});
+  restored.spawn = manager.spawn;
+  await restored.startAgent(restored.get(first.id));
+  await restored.startAgent(restored.get(explicit.id));
+  assert.deepEqual(launches.slice(2), ['opencode --session ses_previous', explicitCommand]);
+
+  enteredId = saved.tasks[1].openCodeSessionId;
+  await restored.useExistingOpenCodeSession();
+  assert.equal(warnings.length, 1);
+  assert.equal(saved.tasks[0].openCodeSessionId, 'ses_previous');
 });
 
 test('a question in a background task updates its status without a VS Code notification', () => {
@@ -139,7 +217,7 @@ test('the Codex terminal distinguishes automatic review from prompts that requir
   };
   const manager = new TaskManager(context, status, { ensure: () => 'artifacts.md' });
   const task = manager.get(saved.id);
-  assert.equal(manager.startAgent(task), true);
+  assert.equal(await manager.startAgent(task), true);
   const permissionRequest = { taskId: task.id, record: { state: 'waiting', event: 'PermissionRequest' } };
   const renderedStates = [];
   manager.onDidChange(() => renderedStates.push(task.state));
@@ -169,6 +247,116 @@ test('the Codex terminal distinguishes automatic review from prompts that requir
   assert.equal(task.state, 'waiting');
   await reportTerminalStatus('\x1b]7501;state=clear\x1b\\');
   assert.equal(task.state, 'thinking');
+});
+
+test('OpenCode reports foreground activity and background work for its own session only', async (t) => {
+  let terminalOutput;
+  const writes = [];
+  const pty = {
+    loadNodePty: () => ({
+      spawn: () => ({
+        onData: listener => { terminalOutput = listener; },
+        onExit() {},
+        write: data => writes.push(data),
+      }),
+    }),
+    childEnv: env => env,
+  };
+  const vscode = {
+    ViewColumn: { One: 1 },
+    EventEmitter: class {
+      event = listener => { this.listener = listener; };
+      fire() { this.listener?.(); }
+    },
+    workspace: { getConfiguration: () => ({ get: (_, fallback) => fallback }) },
+    window: {
+      createOutputChannel: () => ({ error: (_, error) => { throw error; } }),
+      tabGroups: { onDidChangeTabs() {} },
+    },
+  };
+  const sessionId = 'ses_0123456789abcdef0123456789abcdef';
+  const id = `ses_${createHash('sha256').update(sessionId).digest('hex').slice(0, 16)}`;
+  let parentIsRunning = false;
+  const backgroundJobs = [{ kind: 'subagent', description: 'Refresh sibling Git refs' }];
+  const server = http.createServer((request, response) => {
+    assert.equal(request.headers.authorization, 'test authorization');
+    const url = new URL(request.url, 'http://localhost');
+    response.setHeader('content-type', 'application/json');
+    if (url.pathname === '/api/session/active') {
+      response.end(JSON.stringify({ data: {
+        ...(parentIsRunning ? { [sessionId]: { type: 'running' } } : {}),
+        ses_other: { type: 'running' },
+      } }));
+      return;
+    }
+    assert.equal(url.pathname, '/api/experimental/job');
+    assert.equal(url.searchParams.get('sessionID'), sessionId);
+    assert.equal(url.searchParams.get('status'), 'running');
+    assert.equal(url.searchParams.get('descendants'), 'true');
+    response.end(JSON.stringify({ data: backgroundJobs }));
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const service = {
+    discover: async () => ({ url: `http://127.0.0.1:${server.address().port}` }),
+    headers: () => ({ authorization: 'test authorization' }),
+  };
+  const { TaskManager } = loadModule(vscode, pty, 'src/tasks.ts', service);
+  const saved = {
+    id: 'opencode', name: 'OpenCode', cwd: process.cwd(), agentCommand: 'opencode',
+    openCodeSessionId: sessionId, editors: [],
+  };
+  const context = { workspaceState: { get: () => ({ tasks: [saved] }) } };
+  const status = { onStatus() {}, statusFileFor: () => 'opencode.json' };
+  const manager = new TaskManager(context, status, { ensure: () => 'artifacts.md' });
+  const task = manager.get(saved.id);
+  assert.equal(await manager.startAgent(task), true);
+  t.after(() => task.agentTerminal.openCodeActivity.stop());
+  const states = [];
+  let onChange;
+  manager.onDidChange(() => {
+    states.push(task.state);
+    onChange?.();
+  });
+
+  function waitForState(state) {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error(`OpenCode did not report ${state}`)), 3000);
+      onChange = () => {
+        if (task.state !== state) return;
+        clearTimeout(timeout);
+        onChange = undefined;
+        resolve();
+      };
+      onChange();
+    });
+  }
+
+  async function report(data) {
+    terminalOutput(`\x1b]7501;${data}\x1b\\`);
+    await new Promise(resolve => task.agentTerminal.screen.write('', resolve));
+  }
+
+  await report('?');
+  assert.match(writes.at(-1), /^\x1b\]7501;\?:states=/);
+  await report('state=blocked:app=opencode');
+  await report('state=working:id=ses_other:app=opencode');
+  assert.equal(task.state, 'idle');
+  await report(`state=working:id=${id}:app=opencode`);
+  await waitForState('background');
+  assert.deepEqual(task.background, [{ kind: 'agent', label: 'Refresh sibling Git refs' }]);
+  await report(`state=working:id=${id}:app=opencode:title=VXBkYXRlZA==`);
+  assert.equal(task.state, 'background');
+  parentIsRunning = true;
+  await waitForState('thinking');
+  assert.deepEqual(task.background, []);
+  await report(`state=blocked:id=${id}:app=opencode:kind=permission`);
+  await report(`state=working:id=${id}:app=opencode`);
+  await report(`state=clear:id=${id}`);
+  await report('state=idle:app=opencode');
+  assert.deepEqual(states, ['thinking', 'background', 'thinking', 'waiting', 'thinking', 'done']);
+  await report('state=clear');
+  assert.equal(task.state, 'stopped');
 });
 
 test('a reopened terminal preserves the mouse reporting format requested by its program', async (t) => {

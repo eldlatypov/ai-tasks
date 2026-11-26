@@ -1,7 +1,7 @@
 {
   "name": "ai-tasks",
   "displayName": "AI Tasks",
-  "description": "Task tabs for Claude Code and Codex with background terminals, agent status, task links and an MR-delta Changes view across repositories.",
+  "description": "Task tabs for Claude Code, Codex and OpenCode with background terminals, agent status, task links and an MR-delta Changes view across repositories.",
   "version": "0.1.6",
   "publisher": "eldlatypov",
   "license": "MIT",
@@ -25,6 +25,7 @@
     "codex",
     "claude",
     "claude code",
+    "opencode",
     "ai",
     "agent",
     "terminal",
@@ -71,6 +72,11 @@
       {
         "command": "aiTasks.selectDefaultAgent",
         "title": "Select Default Agent…",
+        "category": "AI Tasks"
+      },
+      {
+        "command": "aiTasks.useExistingOpenCodeSession",
+        "title": "Use Existing OpenCode Session…",
         "category": "AI Tasks"
       },
       {
@@ -370,7 +376,7 @@
           {
             "id": "agent",
             "title": "Install the agent CLI",
-            "description": "Install Claude Code or Codex CLI and check that the selected command runs in a terminal.\n[Select Default Agent](command:aiTasks.selectDefaultAgent)\n[Install Codex CLI](https://developers.openai.com/codex/cli/)\n[Install Claude Code](https://docs.claude.com/en/docs/claude-code/setup)",
+            "description": "Install Claude Code, Codex CLI or OpenCode and check that the selected command runs in a terminal.\n[Select Default Agent](command:aiTasks.selectDefaultAgent)\n[Install Codex CLI](https://developers.openai.com/codex/cli/)\n[Install Claude Code](https://docs.claude.com/en/docs/claude-code/setup)\n[Install OpenCode](https://opencode.ai/docs/)",
             "media": {
               "markdown": "media/walkthrough/agent.md"
             }
@@ -417,12 +423,12 @@
         "aiTasks.agentCommand": {
           "type": "string",
           "default": "claude",
-          "description": "Default command for new tasks. Use codex or claude for agent integration, another command for a custom terminal, or an empty string for a plain shell. Each task remembers its command."
+          "description": "Default command for new tasks. Choose claude, codex or opencode, enter a custom command, or leave it empty for a plain shell. Each task remembers its command."
         },
         "aiTasks.resumeActiveTaskOnStartup": {
           "type": "boolean",
           "default": true,
-          "description": "When the window opens, restart the active task and resume its Claude Code or Codex session when available."
+          "description": "When the window opens, restart the active task and resume its Claude Code, Codex or OpenCode session when available."
         },
         "aiTasks.checkForUpdates": {
           "type": "boolean",
@@ -459,6 +465,7 @@
     "publish:ovsx": "npm run package && node --env-file-if-exists=.env node_modules/ovsx/bin/ovsx publish ai-tasks.vsix"
   },
   "dependencies": {
+    "@opencode/client": "2.4.2",
     "@xterm/addon-serialize": "^0.13.0",
     "@xterm/headless": "^5.5.0"
   },
