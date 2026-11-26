@@ -1,7 +1,18 @@
-/** Commands outside these two CLIs are passed through as configured (including an empty shell). */
-export function agentKind(command: string): 'claude' | 'codex' | 'custom' {
-  const match = /^(claude|codex)(?:\.exe|\.cmd)?(?:\s|$)/i.exec(command);
-  return match ? match[1].toLowerCase() as 'claude' | 'codex' : 'custom';
+type AgentKind = 'claude' | 'codex' | 'opencode' | 'custom';
+
+export function agentKind(command: string): AgentKind {
+  const match = /^(claude|codex|opencode)(?:\.exe|\.cmd)?(?:\s|$)/i.exec(command);
+  return match ? match[1].toLowerCase() as AgentKind : 'custom';
+}
+
+export function usesManagedOpenCodeSession(command: string): boolean {
+  return agentKind(command) === 'opencode'
+    && !/^\S+\s+[^-\s]/.test(command)
+    && !/\s(?:--session|--continue|-s|-c)(?:\s|=|$)/.test(command);
+}
+
+export function isOpenCodeSessionId(id: string | undefined): id is string {
+  return !!id && /^ses_[A-Za-z0-9_-]+$/.test(id);
 }
 
 const codexEvents = [

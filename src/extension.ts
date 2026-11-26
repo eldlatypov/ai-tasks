@@ -42,6 +42,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     vscode.commands.registerCommand('aiTasks.newTask', () => tasks.createTask()),
     vscode.commands.registerCommand('aiTasks.selectDefaultAgent', selectDefaultAgent),
+    vscode.commands.registerCommand('aiTasks.useExistingOpenCodeSession', () => tasks.useExistingOpenCodeSession()),
     vscode.commands.registerCommand('aiTasks.switchTask', () => tasks.switchTask()),
     vscode.commands.registerCommand('aiTasks.activateTask', (arg: TaskArg) => {
       const id = taskId(arg);

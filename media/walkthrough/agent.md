@@ -1,7 +1,6 @@
 # The agent CLI
 
-Install Claude Code or Codex CLI, sign in and run **AI Tasks: Select Default Agent…**.
-New tasks use your selection. Reopening an existing task resumes its original agent session.
+Install Claude Code, Codex CLI or OpenCode 2, sign in and run **AI Tasks: Select Default Agent…**. New tasks use your selection. When an agent terminal restarts, AI Tasks can resume the task's session.
 
 For Codex, review and trust the **ai-tasks-codex-hook** entries under `/hooks` before the
 first prompt. These hooks report progress, identify changed repositories and give

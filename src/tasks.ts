@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { agentKind, codexCommand, isSessionId } from './agent';
+import { agentKind, codexCommand, isOpenCodeSessionId, isSessionId, usesManagedOpenCodeSession } from './agent';
 import { ArtifactsStore } from './artifacts';
 import { BackgroundTerminal, TerminalKind } from './backgroundTerminal';
 import { log } from './log';
@@ -21,6 +21,7 @@ interface TaskData {
   /** Pinned when the task is created. Older records predate agent selection. */
   agentCommand?: string;
   sessionId?: string;
+  openCodeSessionId?: string;
   /** File tabs of the task while it is in the background. */
   editors: SavedEditor[];
 }
@@ -148,7 +149,7 @@ export class TaskManager implements vscode.Disposable {
       this.activeId = task.id;
       await this.closeBrokenTerminalTabs();
 
-      if (!task.terminals.some((t) => !t.hasExited) && !this.startAgent(task)) {
+      if (!task.terminals.some((t) => !t.hasExited) && !(await this.startAgent(task))) {
         return;
       }
       if (task.state === 'done') {
@@ -228,6 +229,33 @@ export class TaskManager implements vscode.Disposable {
     }
   }
 
+  async useExistingOpenCodeSession(): Promise<void> {
+    const task = this.active;
+    if (!task || !usesManagedOpenCodeSession(task.data.agentCommand ?? '')) {
+      void vscode.window.showInformationMessage('Open a task configured to let AI Tasks choose its OpenCode session.');
+      return;
+    }
+
+    const value = await vscode.window.showInputBox({
+      title: 'Use Existing OpenCode Session',
+      prompt: 'Find the session ID by running opencode session list in the task folder.',
+      placeHolder: 'ses_…',
+      validateInput: input => isOpenCodeSessionId(input.trim()) ? undefined : 'Enter an OpenCode session ID starting with ses_.',
+    });
+    const sessionId = value?.trim();
+    if (!isOpenCodeSessionId(sessionId) || this.get(task.id) !== task) {
+      return;
+    }
+    if (this.tasks.some(other => other !== task && other.data.openCodeSessionId === sessionId)) {
+      void vscode.window.showWarningMessage('This OpenCode session is already linked to another task.');
+      return;
+    }
+
+    task.data.openCodeSessionId = sessionId;
+    await this.save();
+    void vscode.window.showInformationMessage(`AI Tasks will use this session the next time the agent terminal for "${task.name}" starts.`);
+  }
+
   async closeTask(id?: string): Promise<void> {
     const task = id ? this.get(id) : this.active;
     if (!task) {
@@ -288,7 +316,7 @@ export class TaskManager implements vscode.Disposable {
       ?.kill(); // onExit removes it from the task and disposes its view
   }
 
-  private startAgent(task: Task): boolean {
+  private async startAgent(task: Task): Promise<boolean> {
     const command = task.data.agentCommand ?? defaultAgentCommand();
     let initial: string | undefined;
     if (command) {
@@ -300,6 +328,12 @@ export class TaskManager implements vscode.Disposable {
         if (isSessionId(task.data.sessionId) && claudeTranscriptExists(task.data.sessionId)) {
           initial += ` --resume ${task.data.sessionId}`;
         }
+      } else if (usesManagedOpenCodeSession(command)) {
+        if (!isOpenCodeSessionId(task.data.openCodeSessionId)) {
+          task.data.openCodeSessionId = `ses_${crypto.randomUUID().replace(/-/g, '')}`;
+          await this.save();
+        }
+        initial += ` --session ${task.data.openCodeSessionId}`;
       }
     }
     task.state = 'idle';
@@ -309,6 +343,8 @@ export class TaskManager implements vscode.Disposable {
   private spawn(task: Task, kind: TerminalKind, name: string, initialCommand?: string): BackgroundTerminal | undefined {
     const config = vscode.workspace.getConfiguration('aiTasks');
     const isCodex = kind === 'agent' && agentKind(task.data.agentCommand ?? '') === 'codex';
+    const openCodeSessionId = kind === 'agent' && usesManagedOpenCodeSession(task.data.agentCommand ?? '')
+      ? task.data.openCodeSessionId : undefined;
     let cwd = task.data.cwd;
     if (!fs.existsSync(cwd)) {
       log.warn(`Folder ${cwd} no longer exists. Starting the terminal in the workspace root.`);
@@ -333,6 +369,17 @@ export class TaskManager implements vscode.Disposable {
             : { AI_TASKS_TASK: task.id },
         initialCommand,
         onDidChangeCodexStatus: isCodex ? () => this.changeEmitter.fire() : undefined,
+        openCodeStatus: openCodeSessionId ? {
+          sessionId: openCodeSessionId,
+          sharedService: !/\s(?:--standalone|--server)(?:\s|=|$)/.test(task.data.agentCommand ?? ''),
+          onState: (state, work = []) => {
+            if (task.state !== state || JSON.stringify(task.background) !== JSON.stringify(work)) {
+              task.state = state;
+              task.background = work;
+              this.changeEmitter.fire();
+            }
+          },
+        } : undefined,
       });
     } catch (err) {
       log.error('cannot start terminal', err);
@@ -488,9 +535,9 @@ export class TaskManager implements vscode.Disposable {
     if (needsMigration) this.save();
   }
 
-  private save(): void {
+  private save(): Thenable<void> {
     const state: SavedState = { tasks: this.tasks.map((t) => t.data), activeId: this.activeId };
-    void this.context.workspaceState.update(STORAGE_KEY, state);
+    return this.context.workspaceState.update(STORAGE_KEY, state);
   }
 
   private async pickFolder(): Promise<string | undefined> {
@@ -542,7 +589,11 @@ function defaultAgentCommand(): string {
 export async function selectDefaultAgent(): Promise<void> {
   const config = vscode.workspace.getConfiguration('aiTasks');
   const current = defaultAgentCommand();
-  const choices = [{ label: 'Codex', command: 'codex' }, { label: 'Claude Code', command: 'claude' }];
+  const choices = [
+    { label: 'Codex', command: 'codex' },
+    { label: 'Claude Code', command: 'claude' },
+    { label: 'OpenCode', command: 'opencode' },
+  ];
   const pick = await vscode.window.showQuickPick(choices.map(item => ({
     ...item, description: agentKind(current) === item.command ? 'Current default' : undefined,
   })), { title: 'Default agent for new tasks' });

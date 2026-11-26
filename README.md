@@ -1,18 +1,17 @@
 # AI Tasks
 
-**Run several CLI agents in VS Code at once, one task each.** A task is an agent such as
-[Claude Code](https://claude.com/claude-code) or [Codex CLI](https://developers.openai.com/codex/cli/) with its own terminals, its own open files, its own
-repositories and the links it produced. Switch tasks like browser tabs: the others keep working in
-the background and tell you when they need you.
+**Run several CLI agents in VS Code at once, one task each.** A task is an agent such as [Claude Code](https://claude.com/claude-code), [Codex CLI](https://developers.openai.com/codex/cli/) or [OpenCode](https://opencode.ai/docs/) with its own terminals, open files, repositories and links. Switch tasks like browser tabs while the other agents keep working in the background.
 
 [![A task: the agent asks to edit a file on the left, the merge request delta it is working on on the right](media/screenshots/tasks-and-mr-delta.png)](https://github.com/eldlatypov/ai-tasks/raw/HEAD/media/screenshots/tasks-and-mr-delta.png)
 
-## Every task knows its state
+## Task status
 
 The Tasks view and the status bar show what each agent is doing: working, **needs your input**
 (a permission prompt or a question), **waiting for background work** (its turn is over but a
 Monitor watch, a background command or agent, or a scheduled wakeup will bring it back; the tooltip
 lists them), finished, idle. A bell marks tasks that need your attention. Open the task to answer in its terminal.
+
+OpenCode tasks show when the bound session is working, needs input or has finished. With OpenCode's shared local service, AI Tasks also shows when the main session has paused and is waiting for a subagent or another background job. Claude Code and Codex report background work through their hooks.
 
 Switching tasks hides the other task's terminals and files and brings back this one's, exactly as
 you left them. The processes keep running; showing a terminal again replays its screen.
@@ -28,8 +27,7 @@ one list. Click a file for the diff; switch to plain uncommitted changes from th
 
 ## Links in one place
 
-Under each task, **Artifacts** keeps the links the work produced: the Jira issue, merge requests in
-every repository, Confluence pages, the feature stand. The agent adds them as it goes.
+Under each task, **Artifacts** keeps links to the Jira issue, merge requests, Confluence pages and the feature stand. The Claude Code and Codex hooks tell the agent where to add those links.
 
 [![The artifacts of a task: Jira issue, two merge requests, a Confluence page and the stand](media/screenshots/artifacts.png)](https://github.com/eldlatypov/ai-tasks/raw/HEAD/media/screenshots/artifacts.png)
 
@@ -44,17 +42,14 @@ to restore your settings before uninstalling.
 
 ## Getting started
 
-1. Install Claude Code or Codex CLI and sign in. Open **AI Tasks: Select Default Agent…** in the
-   command palette or the Tasks view menu and choose the CLI for new tasks. The initial choice is Claude Code.
+1. Install Claude Code, Codex CLI or OpenCode and sign in. Open **AI Tasks: Select Default Agent…** in the command palette or the Tasks view menu and choose the CLI for new tasks. The initial choice is Claude Code.
 2. **Ctrl+Alt+N** starts a task: pick its folder, name it, and the agent opens.
 3. **Ctrl+Alt+1…9** switches tasks, **Ctrl+Alt+T** picks one from a list,
    **Ctrl+Alt+`** opens another terminal in the current task.
 
-Each task remembers its agent and session across window reloads. Claude Code receives a task
-settings file. Codex receives per-session hooks and runs with its own local server. Use a Codex
-CLI with `--no-daemon` and lifecycle hook support. Before sending the first prompt, open `/hooks` in Codex,
-review the **ai-tasks-codex-hook** commands and trust them to enable status, session capture,
-artifact instructions and repository tracking. Artifact edits follow the CLI's normal filesystem permissions.
+Each task remembers its agent across window reloads. AI Tasks resumes the task's session when its agent terminal restarts. OpenCode session restore requires OpenCode 2. If you started a conversation before AI Tasks saved OpenCode session IDs, run `opencode session list` in the task folder and copy its ID. With the task active, run **AI Tasks: Use Existing OpenCode Session…**, paste the ID and reload the window.
+
+Claude Code receives a task settings file. Codex receives per-session hooks and runs with its own local server. Use a Codex CLI with `--no-daemon` and lifecycle hook support. Before sending the first prompt, open `/hooks` in Codex, review the **ai-tasks-codex-hook** commands and trust them to enable status, session capture, artifact instructions and repository tracking. Artifact edits follow the CLI's normal filesystem permissions.
 
 **Settings:** `aiTasks.agentCommand` (default `claude`), `aiTasks.baseBranch` (the MR delta's base
 when it is not the remote's default branch, e.g. `origin/develop`), `aiTasks.shell` and

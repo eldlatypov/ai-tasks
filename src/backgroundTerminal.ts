@@ -1,7 +1,10 @@
+import { createHash } from 'crypto';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { Terminal as HeadlessTerminal } from '@xterm/headless';
 import * as vscode from 'vscode';
+import { OpenCodeActivity } from './openCodeActivity';
 import { childEnv, IPty, loadNodePty } from './pty';
+import type { AgentState, PendingWork } from './status';
 
 export type TerminalKind = 'agent' | 'shell';
 
@@ -14,6 +17,11 @@ export interface BackgroundTerminalOptions {
   shellArgs: string[];
   env: Record<string, string>;
   onDidChangeCodexStatus?: () => void;
+  openCodeStatus?: {
+    sessionId: string;
+    sharedService: boolean;
+    onState: (state: AgentState, work?: PendingWork[]) => void;
+  };
   /** Typed into the shell right after it starts. */
   initialCommand?: string;
 }
@@ -36,6 +44,7 @@ export class BackgroundTerminal implements vscode.Disposable {
 
   private readonly pty: IPty;
   private readonly screen: HeadlessTerminal;
+  private readonly openCodeActivity?: OpenCodeActivity;
   private readonly serializer = new SerializeAddon();
   private mouseReportEncoding: 1006 | 1016 | undefined;
   private cols = 120;
@@ -104,6 +113,59 @@ export class BackgroundTerminal implements vscode.Disposable {
         return true;
       });
     }
+    const openCodeStatus = options.openCodeStatus;
+    if (openCodeStatus) {
+      const sessionId = openCodeStatus.sessionId;
+      if (openCodeStatus.sharedService) {
+        this.openCodeActivity = new OpenCodeActivity(sessionId, openCodeStatus.onState);
+      }
+      const report = (state: AgentState) => {
+        if (state === 'thinking' && this.openCodeActivity) {
+          this.openCodeActivity.start();
+          return;
+        }
+        this.openCodeActivity?.stop();
+        openCodeStatus.onState(state);
+      };
+      // OpenCode hashes session IDs longer than the OSC 7501 ID limit.
+      const id = sessionId.length <= 32 ? sessionId : `ses_${createHash('sha256').update(sessionId).digest('hex').slice(0, 16)}`;
+      let reporting = false;
+      this.screen.parser.registerOscHandler(7501, (data) => {
+        if (data === '?') {
+          reporting = true;
+          this.pty.write('\x1b]7501;?:states=idle,working,done,blocked,error:kinds=permission,question,auth\x1b\\');
+          return true;
+        }
+        if (data === 'state=clear' && reporting) {
+          reporting = false;
+          report('stopped');
+          return true;
+        }
+
+        const [status, ...fields] = data.split(':');
+        if (!fields.includes(`id=${id}`) || (status !== 'state=clear' && !fields.includes('app=opencode'))) {
+          return false;
+        }
+        switch (status) {
+          case 'state=working':
+            report('thinking');
+            return true;
+          case 'state=blocked':
+            report('waiting');
+            return true;
+          case 'state=idle':
+            report('idle');
+            return true;
+          case 'state=done':
+          case 'state=error':
+          case 'state=clear':
+            report('done');
+            return true;
+          default:
+            return false;
+        }
+      });
+    }
 
     this.pty = loadNodePty().spawn(options.shell, options.shellArgs, {
       name: 'xterm-256color',
@@ -114,6 +176,7 @@ export class BackgroundTerminal implements vscode.Disposable {
     });
     this.pty.onData((data) => this.onPtyData(data));
     this.pty.onExit(({ exitCode }) => {
+      this.openCodeActivity?.stop();
       this.exitCode = exitCode;
       this.viewClose?.fire(exitCode);
       this.exitEmitter.fire(exitCode);
@@ -290,6 +353,7 @@ export class BackgroundTerminal implements vscode.Disposable {
   }
 
   dispose(): void {
+    this.openCodeActivity?.stop();
     this.kill();
     this.screen.dispose();
     this.exitEmitter.dispose();
